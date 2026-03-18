@@ -1,50 +1,59 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'screens/auth/login_screen.dart';
-// استورد الصفحات الرئيسية (تأكد من وجود الملفات في هذه المسارات)
-// import 'screens/home/rep_home.dart'; 
-// import 'screens/admin/admin_dashboard.dart';
+import 'screens/home/rep_home.dart'; // حننشأ الملف ده حالاً
 
-void main() {
-  runApp(const AksabTestApp());
+void main() async {
+  // التأكد من تهيئة أدوات فلاتر قبل أي كود برمجي
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 1. تشغيل الفايربيز (يقرأ google-services.json تلقائياً)
+  try {
+    await Firebase.initializeApp();
+    print("✅ تم ربط Firebase بنجاح");
+  } catch (e) {
+    print("❌ فشل ربط Firebase: $e");
+  }
+
+  runApp(const AksabERP());
 }
 
-class AksabTestApp extends StatelessWidget {
-  const AksabTestApp({super.key});
+class AksabERP extends StatelessWidget {
+  const AksabERP({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'أكسب للمبيعات - منظومة العهدة',
+      title: 'أكسب ERP - منظومة العهدة',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primaryColor: const Color(0xFFB21F2D),
         useMaterial3: true,
-        fontFamily: 'Cairo', // لو مستخدم خط القاهرة
+        // إعدادات الخط والألوان الصريحة للنظام
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB21F2D)),
       ),
-      // 1. البداية من صفحة اللوج إن
+      // البداية دايماً من اللوج إن لضمان الأمان
       home: const LoginScreen(),
       
-      // 2. تعريف السكك (Routes)
+      // تعريف المسارات (Routes) الحقيقية
       routes: {
         '/login': (context) => const LoginScreen(),
-        // السكك دي هي اللي الـ LoginView بينادي عليها بعد النجاح
-        '/rep_home': (context) => const PlaceholderScreen(title: 'الصفحة الرئيسية للمندوب'), 
-        '/admin_dashboard': (context) => const PlaceholderScreen(title: 'لوحة تحكم المشرفين'),
+        '/rep_home': (context) => const RepHomeScreen(), // صفحة المندوب الصريحة
+        '/admin_dashboard': (context) => const AdminDashboardPlaceholder(),
       },
     );
   }
 }
 
-// صفحة مؤقتة لحين التأكد من ملفات الـ Home
-class PlaceholderScreen extends StatelessWidget {
-  final String title;
-  const PlaceholderScreen({super.key, required this.title});
-
+// مؤقت للمديرين لحين بناء لوحتهم
+class AdminDashboardPlaceholder extends StatelessWidget {
+  const AdminDashboardPlaceholder({super.key});
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title), backgroundColor: const Color(0xFFB21F2D)),
-      body: Center(child: Text('جاري تجهيز بيانات العهدة لـ $title...')),
+      appBar: AppBar(title: const Text('لوحة تحكم الإدارة'), backgroundColor: const Color(0xFF1A2C3D), foregroundColor: Colors.white),
+      body: const Center(child: Text('جاري مزامنة بيانات المشرفين والمديرين...')),
     );
   }
 }

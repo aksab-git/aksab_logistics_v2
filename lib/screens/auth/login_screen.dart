@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'register_screen.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
-const Color kPrimaryColor = Color(0xFFB21F2D); 
+const Color kPrimaryColor = Color(0xFFB21F2D);
 const Color kSecondaryColor = Color(0xFF1A2C3D);
 
 class LoginScreen extends StatefulWidget {
@@ -33,9 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final String? userData = prefs.getString('userData');
 
     if (userRole != null && userData != null) {
-      if (mounted) {
-        _navigateUser(userRole);
-      }
+      if (mounted) _navigateUser(userRole);
     } else {
       setState(() => _isLoading = false);
     }
@@ -45,12 +43,14 @@ class _LoginScreenState extends State<LoginScreen> {
     if (role == 'sales_rep') {
       Navigator.of(context).pushReplacementNamed('/rep_home');
     } else {
+      // توجيه افتراضي للمديرين والمشرفين للمحافظة على الربط
       Navigator.of(context).pushReplacementNamed('/admin_dashboard');
     }
   }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+    
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -60,12 +60,22 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     try {
+      // --- جلب الـ FCM Token للإشعارات ---
+      String? fcmToken;
+      try {
+        fcmToken = await FirebaseMessaging.instance.getToken();
+        print("🚀 FCM Token Captured: $fcmToken");
+      } catch (e) {
+        print("⚠️ Failed to get FCM Token: $e");
+      }
+
       final response = await http.post(
         Uri.parse('https://aksab.pythonanywhere.com/logistics/login/'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'phone': phone,
           'password': password,
+          'fcm_token': fcmToken, // إرسال التوكن لربطه في الديجانجو
         }),
       );
 
@@ -80,15 +90,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
         await prefs.setString('userData', json.encode(fullUserData));
         await prefs.setString('userRole', responseData['role']);
-
-        if (mounted) {
-          _navigateUser(responseData['role']);
-        }
+        
+        if (mounted) _navigateUser(responseData['role']);
       } else {
         _showError(responseData['message'] ?? '❌ بيانات الدخول غير صحيحة');
       }
     } catch (e) {
-      _showError('❌ خطأ في الاتصال بالسيرفر: ${e.toString()}');
+      _showError('❌ خطأ في الاتصال بالسيرفر');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -128,14 +136,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    const Icon(Icons.stars_rounded, size: 70, color: kPrimaryColor),
+                    const Icon(Icons.account_balance_rounded, size: 70, color: kPrimaryColor),
                     const SizedBox(height: 10),
-                    const Text('أكسب للمبيعات',
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: kSecondaryColor)),
-                    const Text('منظومة المندوب الذكي',
+                    const Text('أكسب ERP',
+                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: kSecondaryColor)),
+                    const Text('نظام المبيعات المستقل',
                         style: TextStyle(fontSize: 14, color: Colors.grey)),
                     const SizedBox(height: 30),
-                    _buildField(_phoneController, 'رقم الهاتف', Icons.phone_android, isPhone: true),
+                    _buildField(_phoneController, 'رقم الهاتف / المستخدم', Icons.person_outline),
                     const SizedBox(height: 20),
                     _buildField(_passwordController, 'كلمة المرور', Icons.lock_outline, isPass: true),
                     const SizedBox(height: 30),
@@ -150,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: _isLoading
                             ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('دخول للفريق', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                            : const Text('دخول النظام', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     if (_errorMessage != null)
@@ -158,11 +166,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         padding: const EdgeInsets.only(top: 15),
                         child: Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500)),
                       ),
-                    const SizedBox(height: 20),
-                    TextButton(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen())),
-                      child: const Text('طلب انضمام لفريق المبيعات', style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold)),
-                    ),
                   ],
                 ),
               ),
@@ -173,12 +176,11 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildField(TextEditingController controller, String label, IconData icon, {bool isPass = false, bool isPhone = false}) {
+  Widget _buildField(TextEditingController controller, String label, IconData icon, {bool isPass = false}) {
     return TextFormField(
       controller: controller,
       obscureText: isPass,
       textAlign: TextAlign.right,
-      keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: kPrimaryColor),

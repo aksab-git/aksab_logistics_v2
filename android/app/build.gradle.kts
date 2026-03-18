@@ -2,7 +2,8 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("com.google.gms.google-services")
+    // 1. تفعيل بلجن جوجل سيرفيس عشان يقرأ الـ JSON
+    id("com.google.gms.google-services") 
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -14,8 +15,8 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    // تأكد أن هذا الـ Namespace هو المعتمد لمشروعك
-    namespace = "com.aksab.sales"
+    // 2. تعديل الـ Namespace ليطابق الـ JSON والواقع
+    namespace = "com.aksab.logistics_v2"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -29,7 +30,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.aksab.sales"
+        // 3. تعديل الـ ApplicationId ليكون مطابقاً للـ Firebase Console
+        applicationId = "com.aksab.logistics_v2"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -37,7 +39,6 @@ android {
     }
 
     signingConfigs {
-        // إنشاء إعدادات التوقيع بشكل آمن (لا يسبب خطأ لو الملف غير موجود)
         create("release") {
             if (keystorePropertiesFile.exists()) {
                 keyAlias = keystoreProperties["keyAlias"] as? String
@@ -51,19 +52,15 @@ android {
 
     buildTypes {
         release {
-            // لو ملف المفاتيح موجود استخدم التوقيع الرسمي، لو مش موجود استخدم الـ debug
             signingConfig = if (keystorePropertiesFile.exists() && keystoreProperties["storeFile"] != null) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
             }
-            
             isMinifyEnabled = false
             isShrinkResources = false
         }
-        
         debug {
-            // نسخة التجربة دايماً بتستخدم توقيع أندرويد الافتراضي
             signingConfig = signingConfigs.getByName("debug")
         }
     }
