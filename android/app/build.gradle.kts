@@ -1,72 +1,33 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
-    // 1. تفعيل بلجن جوجل سيرفيس عشان يقرأ الـ JSON
-    id("com.google.gms.google-services") 
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(keystorePropertiesFile.inputStream())
-}
-
 android {
-    // 2. تعديل الـ Namespace ليطابق الـ JSON والواقع
-    namespace = "com.aksab.logistics_v2"
+    namespace = "com.aksab.logistics"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+
+    defaultConfig {
+        applicationId = "com.aksab.logistics"
+        minSdk = 21
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutterVersionCode.toInteger()
+        versionName = flutterVersionName
+        multiDexEnabled = true
+    }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
-
-    defaultConfig {
-        // 3. تعديل الـ ApplicationId ليكون مطابقاً للـ Firebase Console
-        applicationId = "com.aksab.logistics_v2"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
-    }
-
-    signingConfigs {
-        create("release") {
-            if (keystorePropertiesFile.exists()) {
-                keyAlias = keystoreProperties["keyAlias"] as? String
-                keyPassword = keystoreProperties["keyPassword"] as? String
-                val storeFilePath = keystoreProperties["storeFile"] as? String
-                storeFile = if (storeFilePath != null) file(storeFilePath) else null
-                storePassword = keystoreProperties["storePassword"] as? String
-            }
-        }
-    }
-
-    buildTypes {
-        release {
-            signingConfig = if (keystorePropertiesFile.exists() && keystoreProperties["storeFile"] != null) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
-            isMinifyEnabled = false
-            isShrinkResources = false
-        }
-        debug {
-            signingConfig = signingConfigs.getByName("debug")
-        }
+        jvmTarget = "1.8"
     }
 }
 
-flutter {
-    source = "../.."
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
 }
-
