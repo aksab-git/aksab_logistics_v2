@@ -1,3 +1,15 @@
+import java.util.Properties
+
+// 1. جلب بيانات الإصدار من ملف local.properties
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { localProperties.load(it) }
+}
+
+val flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "1"
+val flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "1.0.0"
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -12,7 +24,7 @@ android {
         applicationId = "com.aksab.logistics"
         minSdk = 21
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutterVersionCode.toInteger()
+        versionCode = flutterVersionCode.toInt()
         versionName = flutterVersionName
         multiDexEnabled = true
     }
@@ -24,7 +36,8 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
+        // تم تحديث السطر ده لحل الـ Deprecation Warning
+        freeCompilerArgs = freeCompilerArgs + "-Xjdk-release=1.8"
     }
 }
 
