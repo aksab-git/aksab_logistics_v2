@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http; // إضافة مكتبة الربط بالسيرفر
+import 'dart:convert';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -16,18 +16,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
 
-  String _selectedRole = 'sales_rep';
+  String _selectedRole = 'delivery_agent'; // القيمة الافتراضية للخدمات اللوجستية
   bool _isLoading = false;
   String? _message;
   bool _isSuccess = false;
 
-  // ألوان هوية أكسب الجديدة
   final Color aksabRed = const Color(0xFFB21F2D);
 
+  // تحديث المسميات لتكون لوجستية
   final Map<String, String> _roles = {
-    'sales_rep': 'مندوب مبيعات',
-    'sales_supervisor': 'مشرف مبيعات',
-    'sales_manager': 'مدير مبيعات',
+    'delivery_agent': 'مندوب توصيل (إدارة عهدة)',
+    'delivery_supervisor': 'مشرف لوجستي',
+    'delivery_manager': 'مدير عمليات التوزيع',
   };
 
   Future<void> _register() async {
@@ -38,56 +38,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _message = null;
     });
 
-    String phone = _phoneController.text.trim();
-    // استخدام النطاق الجديد للفصل بين المنصات
-    String smartEmail = "$phone@aksabsales.com";
-
     try {
-      // 1. إنشاء الحساب في Firebase Auth
-      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: smartEmail,
-        password: _passwordController.text,
+      // الرابط الخاص بسيرفر PythonAnywhere
+      final url = Uri.parse("https://Aksab.pythonanywhere.com/api/logistics/register/");
+
+      // إرسال البيانات للباكيند (Django) بالمصطلحات المطلوبة
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "full_name": _nameController.text.trim(),
+          "phone_number": _phoneController.text.trim(),
+          "password": _passwordController.text, // سيتم تشفيرها في الديجانجو
+          "address": _addressController.text.trim(),
+          "user_type": _selectedRole,
+          "insurance_points": 0, // تأمين عهدة الطلب الابتدائي
+          "status": "pending",
+        }),
       );
 
-      final String uid = userCredential.user!.uid;
-
-      // 2. تحديد الكولكشن المناسب
-      String collectionName = (_selectedRole == "sales_rep") ? "pendingReps" : "pendingManagers";
-
-      // 3. حفظ البيانات في Firestore
-      await FirebaseFirestore.instance.collection(collectionName).doc(uid).set({
-        'fullname': _nameController.text.trim(),
-        'email': smartEmail,
-        'phone': phone,
-        'address': _addressController.text.trim(),
-        'role': _selectedRole,
-        'status': "pending",
-        'createdAt': FieldValue.serverTimestamp(),
-        'uid': uid,
-        'appType': 'sales', // لتمييز الطلب مستقبلاً
-      });
-
-      setState(() {
-        _isSuccess = true;
-        _message = "✅ تم التسجيل بنجاح كـ ${_roles[_selectedRole]}، في انتظار موافقة الإدارة.";
-      });
-
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) Navigator.pop(context);
-      });
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _isSuccess = false;
-        if (e.code == 'email-already-in-use') {
-          _message = "❌ رقم الهاتف هذا مسجل به حساب مندوب بالفعل.";
-        } else {
-          _message = "❌ خطأ في التسجيل: ${e.message}";
-        }
-      });
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        setState(() {
+          _isSuccess = true;
+          _message = "✅ تم طلب فتح سجل العهدة بنجاح. في انتظار تفعيل (نقاط الأمان) من الإدارة.";
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) Navigator.pop(context);
+        });
+      } else {
+        final errorData = jsonDecode(response.body);
+        setState(() {
+          _isSuccess = false;
+          _message = "❌ فشل في فتح العهدة: ${errorData['error'] ?? 'خطأ في السيرفر'}";
+        });
+      }
     } catch (e) {
       setState(() {
         _isSuccess = false;
-        _message = "❌ حدث خطأ غير متوقع: ${e.toString()}";
+        _message = "❌ عذراً، تعذر الاتصال بسيرفر العهدة: ${e.toString()}";
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -99,7 +87,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text("إنضم لفريق أكسب مبيعات"),
+        title: const Text("تفعيل نظام إدارة العهدة"),
         backgroundColor: aksabRed,
         centerTitle: true,
         elevation: 0,
@@ -119,14 +107,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    Icon(Icons.person_add_rounded, size: 60, color: aksabRed),
+                    Icon(Icons.inventory_2_rounded, size: 60, color: aksabRed),
                     const SizedBox(height: 20),
-                    _buildField(_nameController, "الاسم بالكامل", Icons.person),
-                    _buildField(_phoneController, "رقم الهاتف", Icons.phone, isPhone: true),
-                    _buildField(_passwordController, "كلمة المرور", Icons.lock, isPass: true),
-                    _buildField(_addressController, "محل الإقامة / المنطقة", Icons.location_on),
+                    _buildField(_nameController, "الاسم بالكامل للمسؤول عن العهدة", Icons.person),
+                    _buildField(_phoneController, "رقم التواصل", Icons.phone, isPhone: true),
+                    _buildField(_passwordController, "كلمة مرور النظام", Icons.lock, isPass: true),
+                    _buildField(_addressController, "منطقة التغطية اللوجستية", Icons.location_on),
                     const Divider(height: 30),
-                    const Text("المسمى الوظيفي المطلوب:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const Text("تحديد نوع المسؤولية:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 10),
                     ..._roles.entries.map((entry) {
                       return RadioListTile<String>(
@@ -156,7 +144,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         child: _isLoading
                             ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text("إرسال طلب الانضمام", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                            : const Text("تأكيد طلب العهدة", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
