@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'register_screen.dart';
 
-// --- الهوية البصرية الجديدة لأكسب ---
-const Color kPrimaryColor = Color(0xFFB21F2D); // أحمر أكسب المعتمد
-const Color kSecondaryColor = Color(0xFF1A2C3D); 
+const Color kPrimaryColor = Color(0xFFB21F2D); 
+const Color kSecondaryColor = Color(0xFF1A2C3D);
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,7 +18,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-
   String? _errorMessage;
   bool _isLoading = true;
 
@@ -32,32 +27,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _checkExistingLogin();
   }
 
-  // ✅ دالة التعامل مع الـ Timestamp أثناء تحويل البيانات لـ JSON (من الكود الأصلي)
-  dynamic _encoder(dynamic item) {
-    if (item is Timestamp) return item.toDate().toIso8601String();
-    return item;
-  }
-
-  Future<void> _registerNotification(String userId, String role, String address) async {
-    try {
-      String? token = await FirebaseMessaging.instance.getToken();
-      if (token == null) return;
-
-      await http.post(
-        Uri.parse('https://5uex7vzy64.execute-api.us-east-1.amazonaws.com/V2/new_nofiction'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'userId': userId,
-          'fcmToken': token,
-          'role': role,
-          'address': address,
-        }),
-      );
-    } catch (e) {
-      debugPrint("Notification Sync Error: $e");
-    }
-  }
-
   Future<void> _checkExistingLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final String? userRole = prefs.getString('userRole');
@@ -65,14 +34,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (userRole != null && userData != null) {
       if (mounted) {
-        if (userRole == 'sales_rep') {
-          Navigator.of(context).pushReplacementNamed('/rep_home');
-        } else {
-          Navigator.of(context).pushReplacementNamed('/admin_dashboard');
-        }
+        _navigateUser(userRole);
       }
     } else {
       setState(() => _isLoading = false);
+    }
+  }
+
+  void _navigateUser(String role) {
+    if (role == 'sales_rep') {
+      Navigator.of(context).pushReplacementNamed('/rep_home');
+    } else {
+      Navigator.of(context).pushReplacementNamed('/admin_dashboard');
     }
   }
 
@@ -83,76 +56,39 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorMessage = null;
     });
 
-    String input = _phoneController.text.trim();
-    // ✅ النطاق الجديد حصرياً
-    String smartEmail = input.contains('@') ? input : "$input@aksabsales.com";
+    final phone = _phoneController.text.trim();
     final password = _passwordController.text.trim();
 
     try {
-      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: smartEmail,
-        password: password,
+      final response = await http.post(
+        Uri.parse('https://aksab.pythonanywhere.com/logistics/login/'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'phone': phone,
+          'password': password,
+        }),
       );
 
-      final user = userCredential.user;
-      if (user == null) throw FirebaseAuthException(code: 'user-null');
+      final responseData = json.decode(utf8.decode(response.bodyBytes));
 
-      DocumentSnapshot? userDocSnapshot;
-      String? userRole;
+      if (response.statusCode == 200 && responseData['status'] == 'success') {
+        final prefs = await SharedPreferences.getInstance();
+        
+        Map<String, dynamic> fullUserData = responseData['data'];
+        fullUserData['fullname'] = responseData['fullname'];
+        fullUserData['uid'] = responseData['user_id'].toString();
 
-      // ✅ البحث في كولكشن salesRep (المفرد) بناءً على الـ Firestore
-      final salesRepQuery = await FirebaseFirestore.instance
-          .collection('salesRep') 
-          .where('uid', isEqualTo: user.uid)
-          .limit(1)
-          .get();
+        await prefs.setString('userData', json.encode(fullUserData));
+        await prefs.setString('userRole', responseData['role']);
 
-      if (salesRepQuery.docs.isNotEmpty) {
-        userDocSnapshot = salesRepQuery.docs.first;
-        userRole = 'sales_rep';
-      }
-
-      if (userDocSnapshot == null) {
-        final managersQuery = await FirebaseFirestore.instance
-            .collection('managers')
-            .where('uid', isEqualTo: user.uid)
-            .limit(1)
-            .get();
-        if (managersQuery.docs.isNotEmpty) {
-          userDocSnapshot = managersQuery.docs.first;
-          userRole = userDocSnapshot.get('role')?.toString();
-        }
-      }
-
-      if (userDocSnapshot != null && userRole != null) {
-        final userDocData = userDocSnapshot.data() as Map<String, dynamic>;
-        userDocData['docId'] = userDocSnapshot.id;
-
-        if (userDocData['status'] == 'approved') {
-          await _registerNotification(user.uid, userRole, userDocData['address'] ?? "");
-
-          final prefs = await SharedPreferences.getInstance();
-          // ✅ التخزين باستخدام الـ encoder لضمان عدم حدوث خطأ في الـ Timestamps
-          await prefs.setString('userData', json.encode(userDocData, toEncodable: _encoder));
-          await prefs.setString('userRole', userRole);
-
-          if (mounted) {
-            Navigator.of(context).pushReplacementNamed(
-              userRole == 'sales_rep' ? '/rep_home' : '/admin_dashboard'
-            );
-          }
-        } else {
-          await FirebaseAuth.instance.signOut();
-          _showError('❌ حسابك بانتظار تفعيل الإدارة.');
+        if (mounted) {
+          _navigateUser(responseData['role']);
         }
       } else {
-        await FirebaseAuth.instance.signOut();
-        _showError('❌ بياناتك غير موجودة في سجلات مبيعات أكسب.');
+        _showError(responseData['message'] ?? '❌ بيانات الدخول غير صحيحة');
       }
-    } on FirebaseAuthException {
-      _showError('❌ رقم الهاتف أو كلمة المرور غير صحيحة.');
     } catch (e) {
-      _showError('❌ خطأ في النظام: ${e.toString()}');
+      _showError('❌ خطأ في الاتصال بالسيرفر: ${e.toString()}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -194,9 +130,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     const Icon(Icons.stars_rounded, size: 70, color: kPrimaryColor),
                     const SizedBox(height: 10),
-                    const Text('أكسب للمبيعات', 
+                    const Text('أكسب للمبيعات',
                         style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: kSecondaryColor)),
-                    const Text('منظومة المندوب الذكي', 
+                    const Text('منظومة المندوب الذكي',
                         style: TextStyle(fontSize: 14, color: Colors.grey)),
                     const SizedBox(height: 30),
                     _buildField(_phoneController, 'رقم الهاتف', Icons.phone_android, isPhone: true),
