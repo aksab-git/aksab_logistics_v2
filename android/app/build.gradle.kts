@@ -36,11 +36,11 @@ android {
     }
 
     kotlinOptions {
-        // تم تحديث السطر ده لحل الـ Deprecation Warning
         freeCompilerArgs = freeCompilerArgs + "-Xjdk-release=1.8"
     }
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
+    // تم التحديث لنسخة 2.1.4 بناءً على طلب Gradle
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
