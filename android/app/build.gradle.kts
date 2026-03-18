@@ -1,5 +1,5 @@
 import java.util.Properties
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
@@ -34,17 +34,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
-
-    // توحيد لغة الكوتلن مع الجافا
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
 }
 
-// إجبار جميع مهام الكومبيلر على استخدام 1.8 لمنع التضارب
-tasks.withType<KotlinCompile>().configureEach {
-    kotlinOptions {
-        jvmTarget = "1.8"
+// الصيغة الحديثة المتوافقة مع Kotlin 2.0+ لتفادي خطأ jvmTarget
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_1_8)
     }
 }
 
