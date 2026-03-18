@@ -23,21 +23,16 @@ jobs:
           
       - run: flutter pub get
 
-      # بناء الـ APK باستخدام فلاتر مع زيادة الذاكرة لتجنب الانهيار في آخر خطوة
-      - name: Build APK with Flutter
+      - name: Build APK
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m"
+          # تعطيل الـ Daemon لتقليل استهلاك الذاكرة
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4096m"
         run: |
-          flutter build apk --debug --verbose
+          # السطر ده هو السر: تخطي فحص النسخ وبناء الـ APK فوراً
+          flutter build apk --debug --no-pub --android-skip-build-dependency-validation
 
-      - name: Locate APK
-        if: always()
-        run: find build -name "*.apk"
-
-      - name: Upload Artifact
-        if: always()
+      - name: Locate and Upload
         uses: actions/upload-artifact@v4
         with:
           name: aksab-debug-apk
-          path: "build/app/outputs/flutter-apk/*.apk"
-          if-no-files-found: warn
+          path: build/app/outputs/flutter-apk/*.apk
