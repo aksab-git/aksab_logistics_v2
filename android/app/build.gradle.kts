@@ -17,11 +17,11 @@ plugins {
 }
 
 android {
-    namespace = "com.aksab.logistics"
+    namespace = "com.aksab.logistics_v2"
     compileSdk = flutter.compileSdkVersion
 
     defaultConfig {
-        applicationId = "com.aksab.logistics"
+        applicationId = "com.aksab.logistics_v2"
         minSdk = 21
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInt()
