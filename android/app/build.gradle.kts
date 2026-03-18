@@ -1,6 +1,6 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
-// 1. جلب بيانات الإصدار من ملف local.properties
 val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
@@ -35,12 +35,19 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
+    // توحيد لغة الكوتلن مع الجافا
     kotlinOptions {
-        freeCompilerArgs = freeCompilerArgs + "-Xjdk-release=1.8"
+        jvmTarget = "1.8"
+    }
+}
+
+// إجبار جميع مهام الكومبيلر على استخدام 1.8 لمنع التضارب
+tasks.withType<KotlinCompile>().configureEach {
+    kotlinOptions {
+        jvmTarget = "1.8"
     }
 }
 
 dependencies {
-    // تم التحديث لنسخة 2.1.4 بناءً على طلب Gradle
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
