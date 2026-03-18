@@ -15,26 +15,29 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
-          
+          cache: 'gradle'
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           
       - run: flutter pub get
-      
-      # بناء نسخة Debug
-      - name: Build APK
-        run: flutter build apk --debug
-      
-      # خطوة إضافية للتأكد من مكان الملف (هتظهرلك في اللوجات لو فشل)
-      - name: List APK files
+
+      # بناء الـ APK باستخدام Gradle مباشرة لضمان الإنتاج
+      - name: Build with Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      # خطوة "كاشف المسار" عشان نشوف الملف راح فين بالظبط
+      - name: Locate APK
         run: find . -name "*.apk"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: aksab-debug-apk
-          # التعديل هنا: استخدام النمط النجمي ليجد الملف في أي مسار مخرجات
-          path: "**/build/app/outputs/flutter-apk/app-debug.apk"
-          # أو كحل بديل أكثر مرونة:
-          # path: "**/*.apk" 
+          # هنرفع أي ملف APK يتم إنتاجه أياً كان مكانه
+          path: "**/*.apk"
+          if-no-files-found: error
