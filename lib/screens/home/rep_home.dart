@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
-import 'package:url_launcher/url_launcher.dart';
 
 // --- الثوابت اللونية لهوية أكسب ERP ---
 const Color kPrimaryColor = Color(0xFFB21F2D);
@@ -33,21 +32,23 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     _checkUserDataAndDayStatus();
   }
 
-  // --- نظام أذونات الموقع والتتبع ---
+  // --- نظام أذونات الموقع المعدل للعمل فوراً ---
   Future<bool> _handleLocationPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _showSnackBar("❌ يرجى تفعيل الـ GPS أولاً");
       return false;
     }
-    
-    var status = await Permission.locationAlways.status;
+
+    // تعديل: طلب إذن الموقع (أثناء الاستخدام) لأنه أضمن وأسرع
+    var status = await Permission.location.status;
     if (status.isDenied) {
-      status = await Permission.locationAlways.request();
+      status = await Permission.location.request();
     }
-    
+
     if (status.isPermanentlyDenied) {
-      _showSnackBar("❌ يجب تفعيل إذن الموقع (دائماً) من الإعدادات للتتبع");
+      _showSnackBar("❌ يرجى تفعيل إذن الموقع من إعدادات الهاتف");
+      openAppSettings();
       return false;
     }
     return status.isGranted;
@@ -56,7 +57,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
   Future<void> _checkUserDataAndDayStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final userDataString = prefs.getString('userData');
-    
+
     if (userDataString == null) {
       if (mounted) Navigator.of(context).pushReplacementNamed('/login');
       return;
@@ -71,18 +72,20 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     });
   }
 
-  // --- التواصل مع Django لبدء الوردية ---
   Future<void> _toggleDay() async {
+    // 1. التحقق من الأذونات أولاً
     bool hasPermission = await _handleLocationPermission();
     if (!hasPermission) return;
 
     setState(() => _isLoading = true);
-    
+
     try {
-      Position position = await Geolocator.getCurrentPosition();
-      final prefs = await SharedPreferences.getInstance();
-      
-      // إرسال البيانات للسيرفر (Django)
+      // 2. الحصول على الموقع الحالي بدقة متوسطة لسرعة الاستجابة
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high
+      );
+
+      // 3. إرسال البيانات لسيرفر Django
       final response = await http.post(
         Uri.parse('https://aksab.pythonanywhere.com/logistics/api/work-day/'),
         headers: {'Content-Type': 'application/json'},
@@ -95,6 +98,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       );
 
       if (response.statusCode == 200) {
+        final prefs = await SharedPreferences.getInstance();
         setState(() {
           _isDayOpen = !_isDayOpen;
           prefs.setBool('isDayOpen', _isDayOpen);
@@ -102,12 +106,12 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
         });
         _showSnackBar(_isDayOpen ? "🚀 بدأت ورديتك - بالتوفيق" : "✅ تم إنهاء الوردية بنجاح");
       } else {
-        _showSnackBar("❌ فشل في تحديث الحالة على السيرفر");
+        _showSnackBar("❌ فشل في تحديث الحالة: ${response.statusCode}");
       }
     } catch (e) {
-      _showSnackBar("❌ خطأ في الاتصال بالسيرفر");
+      _showSnackBar("❌ خطأ في الاتصال بالسيرفر: $e");
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -125,20 +129,22 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           elevation: 0,
         ),
         body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _buildStatusHeader(),
-                const SizedBox(height: 20),
-                _buildInsuranceCard(),
-                const SizedBox(height: 20),
-                _buildActionButton(),
-                const SizedBox(height: 30),
-                _buildActionGrid(),
-              ],
-            ),
-          ),
+          child: _isLoading 
+            ? const Center(child: CircularProgressIndicator(color: kPrimaryColor))
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildStatusHeader(),
+                    const SizedBox(height: 20),
+                    _buildInsuranceCard(),
+                    const SizedBox(height: 20),
+                    _buildActionButton(),
+                    const SizedBox(height: 30),
+                    _buildActionGrid(),
+                  ],
+                ),
+              ),
         ),
       ),
     );
@@ -148,14 +154,14 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.white, 
-        borderRadius: BorderRadius.circular(15), 
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.grey.shade200)
       ),
       child: Row(
         children: [
-          Icon(_isDayOpen ? Icons.online_prediction : Icons.offline_bolt, 
-               color: _isDayOpen ? kSuccessColor : kErrorColor),
+          Icon(_isDayOpen ? Icons.online_prediction : Icons.offline_bolt,
+              color: _isDayOpen ? kSuccessColor : kErrorColor),
           const SizedBox(width: 10),
           Text(_statusMessage, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         ],
@@ -187,10 +193,10 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: _isLoading ? null : _toggleDay,
+        onPressed: _toggleDay,
         icon: Icon(_isDayOpen ? Icons.stop_circle_outlined : Icons.play_circle_fill_outlined, size: 28),
-        label: Text(_isDayOpen ? "إنهاء وردية العمل" : "بدء يوم عمل جديد", 
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        label: Text(_isDayOpen ? "إنهاء وردية العمل" : "بدء يوم عمل جديد",
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
           backgroundColor: _isDayOpen ? kErrorColor : kSuccessColor,
           foregroundColor: Colors.white,
