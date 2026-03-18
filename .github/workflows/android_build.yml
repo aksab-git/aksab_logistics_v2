@@ -9,40 +9,33 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. جلب الكود من الريبوزيتوري
       - uses: actions/checkout@v4
 
-      # 2. إعداد الجافا (النسخة المتوافقة مع Gradle 8+ وفلاتر الحديثة)
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
           cache: 'gradle'
 
-      # 3. إعداد فلاتر
-      - uses: actions/setup-flutter@v2
+      # تم تصحيح السطر ده هنا
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
 
-      # 4. تحميل المكتبات
       - run: flutter pub get
 
-      # 5. بناء الـ APK باستخدام Gradle مباشرة مع تخطي الفحوصات المعطلة
-      - name: Build with Gradle (Fast Lane)
+      - name: Build with Gradle
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug -x lint -x test --stacktrace
 
-      # 6. كاشف المسارات (عشان نتأكد الملف راح فين)
       - name: Locate APK File
         run: find . -name "*.apk"
 
-      # 7. رفع الـ APK كـ Artifact للتحميل
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: aksab-logistics-debug
-          # استخدام النمط الشامل لضمان التقاط الملف أياً كان مساره
           path: "**/*.apk"
           if-no-files-found: error
