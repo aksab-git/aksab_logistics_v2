@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId = "com.aksab.logistics_v2"
-        minSdk = 21
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInt()
         versionName = flutterVersionName
