@@ -1,28 +1,35 @@
-import 'package:flutter/foundation.dart'; // ضرورية لـ debugPrint
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/logistics_models.dart';
 
-class LogisticsService {
+class LogisticsAPI {
   static const String baseUrl = 'https://aksab.pythonanywhere.com/logistics/api';
 
-  // دالة لجلب بيانات العهدة للمندوب
-  static Future<Map<String, dynamic>?> getRepInsurance(String repCode) async {
+  static Future<List<InventoryItem>> fetchMyInventory() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final userDataString = prefs.getString('userData');
+      if (userDataString == null) return [];
+      
+      final userData = jsonDecode(userDataString);
+      final String repCode = userData['rep_code'] ?? '';
+
       final response = await http.get(
-        Uri.parse('$baseUrl/insurance/?rep_code=$repCode'),
+        Uri.parse('$baseUrl/inventory/?rep_code=$repCode'),
       );
 
       if (response.statusCode == 200) {
-        return json.decode(utf8.decode(response.bodyBytes));
+        List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        return data.map((item) => InventoryItem.fromJson(item)).toList();
       } else {
-        // استبدال print بـ debugPrint لتخطي فحص الـ Analyze
-        debugPrint("⚠️ Logistics API Error: ${response.statusCode}");
-        return null;
+        debugPrint("⚠️ API Error: ${response.statusCode}");
+        return [];
       }
     } catch (e) {
-      debugPrint("❌ Logistics Service Exception: $e");
-      return null;
+      debugPrint("❌ Connection Exception: $e");
+      return [];
     }
   }
 }
-
