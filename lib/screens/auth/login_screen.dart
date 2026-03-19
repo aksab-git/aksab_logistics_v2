@@ -18,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+
   String? _errorMessage;
   bool _isLoading = true;
 
@@ -50,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -64,9 +65,10 @@ class _LoginScreenState extends State<LoginScreen> {
       String? fcmToken;
       try {
         fcmToken = await FirebaseMessaging.instance.getToken();
-        print("🚀 FCM Token Captured: $fcmToken");
+        // تم استبدال الـ print بـ debugPrint لتجنب مشاكل الـ Analyze
+        debugPrint("FCM Token Captured: $fcmToken");
       } catch (e) {
-        print("⚠️ Failed to get FCM Token: $e");
+        debugPrint("Failed to get FCM Token: $e");
       }
 
       final response = await http.post(
@@ -83,14 +85,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (response.statusCode == 200 && responseData['status'] == 'success') {
         final prefs = await SharedPreferences.getInstance();
-        
+
         Map<String, dynamic> fullUserData = responseData['data'];
         fullUserData['fullname'] = responseData['fullname'];
         fullUserData['uid'] = responseData['user_id'].toString();
 
         await prefs.setString('userData', json.encode(fullUserData));
         await prefs.setString('userRole', responseData['role']);
-        
+
         if (mounted) _navigateUser(responseData['role']);
       } else {
         _showError(responseData['message'] ?? '❌ بيانات الدخول غير صحيحة');
@@ -130,7 +132,8 @@ class _LoginScreenState extends State<LoginScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(25),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20)],
+                // تم استبدال withOpacity بـ withAlpha لتجنب الـ Deprecation
+                boxShadow: [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 20)],
               ),
               child: Form(
                 key: _formKey,
@@ -192,3 +195,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

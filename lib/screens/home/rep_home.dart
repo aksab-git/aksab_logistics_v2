@@ -5,8 +5,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
 
-// استيراد صفحة الجرد الجديدة
-import '../inventory_screen.dart'; 
+// تم تعطيل استيراد صفحة الجرد مؤقتاً لأنها خارج مجلد lib حالياً لإصلاح أخطاء البناء
+// import '../inventory_screen.dart';
 
 // --- الثوابت اللونية لهوية أكسب ERP ---
 const Color kPrimaryColor = Color(0xFFB21F2D);
@@ -172,7 +172,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       decoration: BoxDecoration(
         color: kSecondaryColor,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 10)],
       ),
       child: Column(
         children: [
@@ -216,11 +216,8 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           _showSnackBar("قريباً: ماسح الباركود لتأكيد العهدة");
         }),
         _menuItem("جرد العهدة", Icons.inventory_2_outlined, Colors.teal, () {
-          // فتح صفحة الجرد مباشرة
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => InventoryScreen()),
-          ).then((_) => _checkUserDataAndDayStatus()); // تحديث الداتا عند الرجوع
+          // تم تعطيل الانتقال لصفحة الجرد مؤقتاً لحين إعادة الملف للمشروع
+          _showSnackBar("جاري تحديث نظام الجرد...");
         }),
         _menuItem("قائمة العملاء", Icons.people_alt_outlined, Colors.orange, () {
           _showSnackBar("قريباً: إدارة خط السير");
@@ -239,7 +236,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.05), blurRadius: 10)],
+          boxShadow: [BoxShadow(color: color.withAlpha(13), blurRadius: 10)],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

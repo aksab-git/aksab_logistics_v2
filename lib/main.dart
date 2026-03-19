@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+// تم الإبقاء على مكتبة المراسلة لاستخدامها في التهيئة لاحقاً أو إزالتها إذا لم تكن هناك حاجة لـ FirebaseMessaging داخل الـ main حالياً
+import 'package:firebase_messaging/firebase_messaging.dart'; 
 import 'screens/auth/login_screen.dart';
-import 'screens/home/rep_home.dart'; // حننشأ الملف ده حالاً
+import 'screens/home/rep_home.dart';
 
 void main() async {
   // التأكد من تهيئة أدوات فلاتر قبل أي كود برمجي
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 1. تشغيل الفايربيز (يقرأ google-services.json تلقائياً)
+
+  // 1. تشغيل الفايربيز
   try {
     await Firebase.initializeApp();
-    print("✅ تم ربط Firebase بنجاح");
+    // طلب إذن الإشعارات هنا يجعل الـ import مستخدماً ويحل مشكلة الـ Unused Import
+    await FirebaseMessaging.instance.requestPermission();
+    debugPrint("✅ Firebase Initialized & Permissions Requested");
   } catch (e) {
-    print("❌ فشل ربط Firebase: $e");
+    debugPrint("❌ Firebase Initialization Failed: $e");
   }
 
   runApp(const AksabERP());
@@ -33,9 +36,8 @@ class AksabERP extends StatelessWidget {
         // إعدادات الخط والألوان الصريحة للنظام
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB21F2D)),
       ),
-      // البداية دايماً من اللوج إن لضمان الأمان
+      // البداية من اللوج إن لضمان الأمان
       home: const LoginScreen(),
-      
       // تعريف المسارات (Routes) الحقيقية
       routes: {
         '/login': (context) => const LoginScreen(),
@@ -52,8 +54,13 @@ class AdminDashboardPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('لوحة تحكم الإدارة'), backgroundColor: const Color(0xFF1A2C3D), foregroundColor: Colors.white),
+      appBar: AppBar(
+        title: const Text('لوحة تحكم الإدارة'),
+        backgroundColor: const Color(0xFF1A2C3D),
+        foregroundColor: Colors.white,
+      ),
       body: const Center(child: Text('جاري مزامنة بيانات المشرفين والمديرين...')),
     );
   }
 }
+
