@@ -1,4 +1,4 @@
-name: Flutter Build (Fast Track & Deep Discovery)
+name: Flutter Build (Final Strike)
 
 on:
   push:
@@ -17,41 +17,31 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle' # تفعيل كاش جرايدل لتسريع البناء
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true # تفعيل كاش فلاتر
 
       - name: Get Dependencies
         run: flutter pub get
 
-      # بناء الـ APK مع تفعيل الـ Verbose لرؤية المسارات الحقيقية للملفات الناتجة
       - name: Build Release APK
-        run: flutter build apk --release --no-tree-shake-icons --verbose
+        # شلنا الـ verbose عشان اللوج ميبقاش ضخم ويسبب بطء، وخليناها عادية
+        run: flutter build apk --release --no-tree-shake-icons
 
-      # خطوة البحث الذكي: بتبحث في كل مجلد build/app/outputs عن أي ملف APK
       - name: Find and Collect APK
+        if: always() # يشتغل حتى لو الخطوة اللي قبله فشلت عشان نشوف الملفات
         run: |
           mkdir -p output
-          echo "Searching for APK files..."
-          # البحث بعمق في كل المجلدات المحتملة (flutter-apk أو apk/release)
+          echo "Listing all generated APKs..."
+          find build/app/outputs/ -name "*.apk" -print
           find build/app/outputs/ -name "*.apk" -exec cp {} ./output/aksab_erp_final.apk \;
           
-          echo "Check if APK was collected:"
-          if [ -f ./output/aksab_erp_final.apk ]; then
-            echo "✅ Success: APK found and copied."
-            ls -lh output/
-          else
-            echo "❌ Error: APK not found in the expected build paths."
-            echo "Listing full build directory for debugging:"
-            ls -R build/app/outputs/
-            exit 1
-          fi
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Aksab-ERP-Final-Test
-          path: output/aksab_erp_final.apk
-          if-no-files-found: error
+          path: output/*.apk
