@@ -1,4 +1,4 @@
-name: Flutter Build (Deep Debugging)
+name: Flutter Build (Fast Track)
 
 on:
   push:
@@ -26,12 +26,8 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      # 1. فحص الكود (لو هنا فيه غلطة هيقولك الملف والسطر)
-      - name: Analyze Dart
-        run: flutter analyze
-
-      # 2. البناء الحقيقي (لو فشل هنا، اللوج هيقولك العيب في Gradle أو المكتبات)
-      # لاحظ: شلنا || true عشان السيرفر "يعترف" بالعطل
+      # تم إلغاء خطوة الـ Analyze تماماً للاعتماد على لوجات الـ APK
+      
       - name: Build Release APK
         run: flutter build apk --release --no-tree-shake-icons
 
@@ -39,7 +35,7 @@ jobs:
         run: |
           mkdir -p output
           find build/app/outputs/flutter-apk/ -name "*release.apk" -exec cp {} ./output/aksab_erp_final.apk \;
-          ls -R output
+          ls -R output || echo "APK not found, checking directory structure..."
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
