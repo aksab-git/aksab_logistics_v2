@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.aksab.logistics"
-    compileSdk = 36 // خليناه 36 عشان يرضي المكتبات الجديدة
+    compileSdk = 36 
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
@@ -22,7 +22,6 @@ android {
     }
 
     compileOptions {
-        // تفعيل دعم Java 8 وهو المطلوب لرسالة الخطأ اللي ظهرت
         coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -46,7 +45,7 @@ flutter {
 }
 
 dependencies {
-    // إضافة مكتبة الـ Desugaring المطلوبة رسمياً
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    // التحديث المطلوب لإصدار 2.1.4 كما طلب الـ Log تماماً
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
     implementation "androidx.multidex:multidex:2.0.1"
 }
