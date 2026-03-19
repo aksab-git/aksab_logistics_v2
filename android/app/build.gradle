@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.aksab.logistics"
-    compileSdk = 34
+    // رفع لـ 36 إجباري عشان خاطر androidx.core 1.17.0
+    compileSdk = 36
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
@@ -14,8 +15,8 @@ android {
 
     defaultConfig {
         applicationId = "com.aksab.logistics"
-        minSdk = 23
-        targetSdk = 34
+        minSdk = 24 // رفعنا المينيمم لـ 24 لضمان توافق أفضل مع 36
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
         multiDexEnabled true
@@ -23,12 +24,12 @@ android {
 
     compileOptions {
         coreLibraryDesugaringEnabled true
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11 // رفع لـ Java 11
+        targetCompatibility JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '11'
     }
 
     buildTypes {
@@ -45,6 +46,7 @@ flutter {
 }
 
 dependencies {
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    // الإصدار ده هو الوحيد اللي هيحل مشكلة الـ Metadata مع SDK 36
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
     implementation "androidx.multidex:multidex:2.0.1"
 }
