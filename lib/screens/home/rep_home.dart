@@ -5,6 +5,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
 
+// استيراد صفحة الجرد الجديدة
+import '../inventory_screen.dart'; 
+
 // --- الثوابت اللونية لهوية أكسب ERP ---
 const Color kPrimaryColor = Color(0xFFB21F2D);
 const Color kSecondaryColor = Color(0xFF1A2C3D);
@@ -32,7 +35,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     _checkUserDataAndDayStatus();
   }
 
-  // --- نظام أذونات الموقع المعدل للعمل فوراً ---
+  // --- نظام أذونات الموقع ---
   Future<bool> _handleLocationPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -40,7 +43,6 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       return false;
     }
 
-    // تعديل: طلب إذن الموقع (أثناء الاستخدام) لأنه أضمن وأسرع
     var status = await Permission.location.status;
     if (status.isDenied) {
       status = await Permission.location.request();
@@ -67,25 +69,20 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       repData = jsonDecode(userDataString);
       _isDayOpen = prefs.getBool('isDayOpen') ?? false;
       _insurancePoints = repData?['insurance_points']?.toString() ?? "0";
-      _statusMessage = _isDayOpen ? 'يوم العمل مفتوح - التتبع نشط' : 'يرجى بدء الوردية لاستلام العهدة';
+      _statusMessage = _isDayOpen ? 'يوم العمل مفتوح - التتبع نشط' : 'يرجى بدء الوردية لإدارة العهدة';
       _isLoading = false;
     });
   }
 
   Future<void> _toggleDay() async {
-    // 1. التحقق من الأذونات أولاً
     bool hasPermission = await _handleLocationPermission();
     if (!hasPermission) return;
 
     setState(() => _isLoading = true);
-
     try {
-      // 2. الحصول على الموقع الحالي بدقة متوسطة لسرعة الاستجابة
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high
-      );
+          desiredAccuracy: LocationAccuracy.high);
 
-      // 3. إرسال البيانات لسيرفر Django
       final response = await http.post(
         Uri.parse('https://aksab.pythonanywhere.com/logistics/api/work-day/'),
         headers: {'Content-Type': 'application/json'},
@@ -129,22 +126,22 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           elevation: 0,
         ),
         body: SafeArea(
-          child: _isLoading 
-            ? const Center(child: CircularProgressIndicator(color: kPrimaryColor))
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _buildStatusHeader(),
-                    const SizedBox(height: 20),
-                    _buildInsuranceCard(),
-                    const SizedBox(height: 20),
-                    _buildActionButton(),
-                    const SizedBox(height: 30),
-                    _buildActionGrid(),
-                  ],
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator(color: kPrimaryColor))
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildStatusHeader(),
+                      const SizedBox(height: 20),
+                      _buildInsuranceCard(),
+                      const SizedBox(height: 20),
+                      _buildActionButton(),
+                      const SizedBox(height: 30),
+                      _buildActionGrid(),
+                    ],
+                  ),
                 ),
-              ),
         ),
       ),
     );
@@ -154,10 +151,9 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.grey.shade200)
-      ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.grey.shade200)),
       child: Row(
         children: [
           Icon(_isDayOpen ? Icons.online_prediction : Icons.offline_bolt,
@@ -180,9 +176,10 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       ),
       child: Column(
         children: [
-          const Text("نقاط تأمين العهدة الحالية", style: TextStyle(color: Colors.white70, fontSize: 14)),
+          const Text("إجمالي قيمة الأمانات بالعهدة", style: TextStyle(color: Colors.white70, fontSize: 14)),
           const SizedBox(height: 10),
-          Text(_insurancePoints, style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+          Text(_insurancePoints,
+              style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
           const Text("نقطة تأمين", style: TextStyle(color: Colors.white54, fontSize: 12)),
         ],
       ),
@@ -215,28 +212,43 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       mainAxisSpacing: 15,
       crossAxisSpacing: 15,
       children: [
-        _menuItem("تأكيد عهدة", Icons.qr_code_scanner, Colors.blue),
-        _menuItem("قائمة العملاء", Icons.people_alt_outlined, Colors.orange),
-        _menuItem("إدارة الأمانات", Icons.inventory_2_outlined, Colors.teal),
-        _menuItem("تقارير اليوم", Icons.bar_chart_outlined, Colors.purple),
+        _menuItem("تأكيد عهدة", Icons.qr_code_scanner, Colors.blue, () {
+          _showSnackBar("قريباً: ماسح الباركود لتأكيد العهدة");
+        }),
+        _menuItem("جرد العهدة", Icons.inventory_2_outlined, Colors.teal, () {
+          // فتح صفحة الجرد مباشرة
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => InventoryScreen()),
+          ).then((_) => _checkUserDataAndDayStatus()); // تحديث الداتا عند الرجوع
+        }),
+        _menuItem("قائمة العملاء", Icons.people_alt_outlined, Colors.orange, () {
+          _showSnackBar("قريباً: إدارة خط السير");
+        }),
+        _menuItem("تقارير اليوم", Icons.bar_chart_outlined, Colors.purple, () {
+          _showSnackBar("قريباً: ملخص المبيعات");
+        }),
       ],
     );
   }
 
-  Widget _menuItem(String title, IconData icon, Color color) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.05), blurRadius: 10)],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 35),
-          const SizedBox(height: 10),
-          Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: kSecondaryColor)),
-        ],
+  Widget _menuItem(String title, IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.05), blurRadius: 10)],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 35),
+            const SizedBox(height: 10),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: kSecondaryColor)),
+          ],
+        ),
       ),
     );
   }

@@ -1,4 +1,4 @@
-name: Flutter Build (Debug APK)
+name: Flutter Build (Release APK - No Debug)
 
 on:
   push:
@@ -27,20 +27,22 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      # بناء الـ APK مع السماح بالفشل في الخطوة دي لو الملف طلع في مسار غريب
-      - name: Build Debug APK
-        run: flutter build apk --debug || true
+      # بناء نسخة الـ Release - هتكون أصغر بكتير وأسرع
+      - name: Build Release APK
+        run: flutter build apk --release --no-tree-shake-icons || true
 
-      # خطوة البحث "الصياد" - بتجيب أي APK طلع في أي داهية وتنقله لمكان واحد
+      # خطوة "الصياد" لجمع النسخة النهائية
       - name: Find and Collect APK
         run: |
           mkdir -p output
-          find . -name "*.apk" -exec cp {} ./output/ \;
+          find . -name "*release.apk" -exec cp {} ./output/aksab_logistics_v2_release.apk \;
+          # لو ملقاش ريليس ياخد أي حاجة تانية احتياطي
+          find . -name "*.apk" -not -path "./output/*" -exec cp {} ./output/ \;
           ls -R output
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Aksab-Logistics-Found-APK
+          name: Aksab-Logistics-Release-v2
           path: output/*.apk
           if-no-files-found: error
