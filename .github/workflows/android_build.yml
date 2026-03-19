@@ -1,4 +1,4 @@
-name: Flutter Build (Fast Track)
+name: Flutter Build (Fast Track & Deep Discovery)
 
 on:
   push:
@@ -26,19 +26,32 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      # تم إلغاء خطوة الـ Analyze تماماً للاعتماد على لوجات الـ APK
-      
+      # بناء الـ APK مع تفعيل الـ Verbose لرؤية المسارات الحقيقية للملفات الناتجة
       - name: Build Release APK
-        run: flutter build apk --release --no-tree-shake-icons
+        run: flutter build apk --release --no-tree-shake-icons --verbose
 
+      # خطوة البحث الذكي: بتبحث في كل مجلد build/app/outputs عن أي ملف APK
       - name: Find and Collect APK
         run: |
           mkdir -p output
-          find build/app/outputs/flutter-apk/ -name "*release.apk" -exec cp {} ./output/aksab_erp_final.apk \;
-          ls -R output || echo "APK not found, checking directory structure..."
+          echo "Searching for APK files..."
+          # البحث بعمق في كل المجلدات المحتملة (flutter-apk أو apk/release)
+          find build/app/outputs/ -name "*.apk" -exec cp {} ./output/aksab_erp_final.apk \;
+          
+          echo "Check if APK was collected:"
+          if [ -f ./output/aksab_erp_final.apk ]; then
+            echo "✅ Success: APK found and copied."
+            ls -lh output/
+          else
+            echo "❌ Error: APK not found in the expected build paths."
+            echo "Listing full build directory for debugging:"
+            ls -R build/app/outputs/
+            exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Aksab-ERP-Final-Test
-          path: output/*.apk
+          path: output/aksab_erp_final.apk
+          if-no-files-found: error
