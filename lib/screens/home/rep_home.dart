@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
-import 'inventory_screen.dart';
+
+// المسار الصحيح حالياً لأنهم في نفس المجلد (lib/screens/home/)
+import 'inventory_screen.dart'; 
 
 // --- الثوابت اللونية لهوية أكسب ERP ---
 const Color kPrimaryColor = Color(0xFFB21F2D);
@@ -33,21 +35,18 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     _checkUserDataAndDayStatus();
   }
 
-  // --- نظام أذونات الموقع ---
   Future<bool> _handleLocationPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _showSnackBar("❌ يرجى تفعيل الـ GPS أولاً");
       return false;
     }
-
     var status = await Permission.location.status;
     if (status.isDenied) {
       status = await Permission.location.request();
     }
-
     if (status.isPermanentlyDenied) {
-      _showSnackBar("❌ يرجى تفعيل إذن الموقع من إعدادات الهاتف");
+      _showSnackBar("❌ يرجى تفعيل إذن الموقع من الإعدادات");
       openAppSettings();
       return false;
     }
@@ -57,12 +56,10 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
   Future<void> _checkUserDataAndDayStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final userDataString = prefs.getString('userData');
-
     if (userDataString == null) {
       if (mounted) Navigator.of(context).pushReplacementNamed('/login');
       return;
     }
-
     setState(() {
       repData = jsonDecode(userDataString);
       _isDayOpen = prefs.getBool('isDayOpen') ?? false;
@@ -83,7 +80,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
         Uri.parse('https://aksab.pythonanywhere.com/logistics/api/work-day/'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'rep_code': repData!['rep_code'],
+          'rep_code': repData!['rep_code'], // المنطق الأصلي "المباشر"
           'action': _isDayOpen ? 'end' : 'start',
           'lat': position.latitude,
           'lng': position.longitude,
@@ -212,6 +209,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           _showSnackBar("قريباً: ماسح الباركود لتأكيد العهدة");
         }),
         _menuItem("جرد العهدة", Icons.inventory_2_outlined, Colors.teal, () {
+          // فتح صفحة الجرد مباشرة بالمسار الجديد
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const InventoryScreen()),
@@ -252,4 +250,3 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
-
