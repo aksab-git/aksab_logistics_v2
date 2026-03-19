@@ -6,7 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
 
 // المسار الصحيح حالياً لأنهم في نفس المجلد (lib/screens/home/)
-import 'inventory_screen.dart'; 
+import 'inventory_screen.dart';
 
 // --- الثوابت اللونية لهوية أكسب ERP ---
 const Color kPrimaryColor = Color(0xFFB21F2D);
@@ -63,6 +63,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     setState(() {
       repData = jsonDecode(userDataString);
       _isDayOpen = prefs.getBool('isDayOpen') ?? false;
+      // قراءة نقاط التأمين من البيانات المحفوظة
       _insurancePoints = repData?['insurance_points']?.toString() ?? "0";
       _statusMessage = _isDayOpen ? 'يوم العمل مفتوح - التتبع نشط' : 'يرجى بدء الوردية لإدارة العهدة';
       _isLoading = false;
@@ -76,11 +77,14 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     try {
       Position position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
+
+      // --- التعديل الجوهري: مطابقة المسار في urls.py ---
+      // حذفنا كلمة /api/ لأنها غير موجودة في الـ urlpatterns بالـ Django
       final response = await http.post(
-        Uri.parse('https://aksab.pythonanywhere.com/logistics/api/work-day/'),
+        Uri.parse('https://aksab.pythonanywhere.com/logistics/work-day/'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'rep_code': repData!['rep_code'], // المنطق الأصلي "المباشر"
+          'rep_code': repData!['rep_code'],
           'action': _isDayOpen ? 'end' : 'start',
           'lat': position.latitude,
           'lng': position.longitude,
@@ -94,7 +98,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           prefs.setBool('isDayOpen', _isDayOpen);
           _statusMessage = _isDayOpen ? 'تم بدء الوردية بنجاح' : 'تم إنهاء الوردية وتصفية العهدة';
         });
-        _showSnackBar(_isDayOpen ? "🚀 بدأت ورديتك - بالتوفيق" : "✅ تم إنهاء الوردية بنجاح");
+        _showSnackBar(_isDayOpen ? "🚀 تأكيد العهدة: بدأت ورديتك" : "✅ تم تأكيد استلام الأمانات وإغلاق العهدة");
       } else {
         _showSnackBar("❌ فشل في تحديث الحالة: ${response.statusCode}");
       }
@@ -185,7 +189,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       child: ElevatedButton.icon(
         onPressed: _toggleDay,
         icon: Icon(_isDayOpen ? Icons.stop_circle_outlined : Icons.play_circle_fill_outlined, size: 28),
-        label: Text(_isDayOpen ? "إنهاء وردية العمل" : "بدء يوم عمل جديد",
+        label: Text(_isDayOpen ? "تأكيد إنهاء العهدة" : "تأكيد عهدة اليوم",
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
           backgroundColor: _isDayOpen ? kErrorColor : kSuccessColor,
@@ -205,21 +209,20 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       mainAxisSpacing: 15,
       crossAxisSpacing: 15,
       children: [
-        _menuItem("تأكيد عهدة", Icons.qr_code_scanner, Colors.blue, () {
-          _showSnackBar("قريباً: ماسح الباركود لتأكيد العهدة");
+        _menuItem("تأكيد استلام", Icons.qr_code_scanner, Colors.blue, () {
+          _showSnackBar("قريباً: تأمين عهدة جديدة بالباركود");
         }),
         _menuItem("جرد العهدة", Icons.inventory_2_outlined, Colors.teal, () {
-          // فتح صفحة الجرد مباشرة بالمسار الجديد
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const InventoryScreen()),
           );
         }),
-        _menuItem("قائمة العملاء", Icons.people_alt_outlined, Colors.orange, () {
+        _menuItem("العملاء", Icons.people_alt_outlined, Colors.orange, () {
           _showSnackBar("قريباً: إدارة خط السير");
         }),
-        _menuItem("تقارير اليوم", Icons.bar_chart_outlined, Colors.purple, () {
-          _showSnackBar("قريباً: ملخص المبيعات");
+        _menuItem("تقارير العهدة", Icons.bar_chart_outlined, Colors.purple, () {
+          _showSnackBar("قريباً: ملخص الأمانات");
         }),
       ],
     );
@@ -250,3 +253,4 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
+

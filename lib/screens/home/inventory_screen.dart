@@ -13,7 +13,7 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen> {
   List<dynamic> _inventoryItems = [];
   bool _isLoading = true;
-  String _errorMessage = ""; // لإظهار الخطأ لو السيرفر رد بـ 400 أو 500
+  String _errorMessage = "";
   final Color kPrimaryColor = const Color(0xFFB21F2D);
   final Color kSecondaryColor = const Color(0xFF1A2C3D);
 
@@ -28,29 +28,30 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final userDataString = prefs.getString('userData');
     
     if (userDataString == null) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = "لم يتم العثور على بيانات المستخدم، يرجى تسجيل الدخول";
-      });
+      setState(() { _isLoading = false; _errorMessage = "يرجى إعادة تسجيل الدخول"; });
       return;
     }
     
-    final repData = jsonDecode(userDataString);
-    final String repCode = repData['rep_code'] ?? "";
+    final Map<String, dynamic> repData = jsonDecode(userDataString);
+    final String repCode = repData['rep_code']?.toString() ?? "";
 
     if (repCode.isEmpty) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = "كود المندوب غير صالح";
-      });
+      setState(() { _isLoading = false; _errorMessage = "كود المندوب غير موجود في الذاكرة"; });
       return;
     }
 
     try {
-      // التأكد من الـ URL والـ Parameter: rep_code
+      // التعديل الجوهري: الرابط المطابق للـ urls.py في السيرفر
+      // مع إضافة rep_code كـ Query Parameter
       final response = await http.get(
-        Uri.parse('https://aksab.pythonanywhere.com/logistics/api/inventory/?rep_code=$repCode'),
+        Uri.parse('https://aksab.pythonanywhere.com/logistics/my-inventory/?rep_code=$repCode'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
       );
+
+      debugPrint("🚀 Requesting: ${response.request?.url}");
 
       if (response.statusCode == 200) {
         setState(() {
@@ -60,14 +61,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
       } else {
         setState(() {
           _isLoading = false;
-          _errorMessage = "فشل السيرفر: ${response.statusCode}\n${response.body}";
+          _errorMessage = "خطأ من السيرفر (${response.statusCode}):\n${response.body}";
         });
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = "خطأ في الاتصال: $e";
-      });
+      setState(() { _isLoading = false; _errorMessage = "خطأ في الاتصال: $e"; });
     }
   }
 
@@ -76,8 +74,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FA),
         appBar: AppBar(
           title: const Text('جرد العهدة الحالية', style: TextStyle(fontWeight: FontWeight.bold)),
+          centerTitle: true,
           backgroundColor: Colors.white,
           foregroundColor: kSecondaryColor,
           elevation: 0,
@@ -88,11 +88,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(20),
-                      child: Text(_errorMessage, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red, size: 50),
+                          const SizedBox(height: 10),
+                          Text(_errorMessage, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+                          const SizedBox(height: 20),
+                          ElevatedButton(onPressed: _fetchInventory, child: const Text("محاولة أخرى"))
+                        ],
+                      ),
                     ),
                   )
                 : _inventoryItems.isEmpty
-                    ? const Center(child: Text("لا توجد عهدة (أمانات) مسجلة حالياً"))
+                    ? const Center(child: Text("لا توجد أمانات (بضاعة) في عهدتك حالياً"))
                     : ListView.builder(
                         padding: const EdgeInsets.all(15),
                         itemCount: _inventoryItems.length,
@@ -101,19 +110,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           return Card(
                             margin: const EdgeInsets.only(bottom: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                            elevation: 2,
+                            elevation: 1,
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: kPrimaryColor.withOpacity(0.1),
+                                backgroundColor: kPrimaryColor.withAlpha(25),
                                 child: Icon(Icons.inventory_2, color: kPrimaryColor),
                               ),
                               title: Text(item['product_name'] ?? 'منتج غير معروف',
                                   style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: Text("كود الصنف: ${item['product_code']}"),
+                              subtitle: Text("كود: ${item['product_code'] ?? 'N/A'}"),
                               trailing: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text("${item['quantity']}",
+                                  Text("${item['quantity'] ?? 0}",
                                       style: TextStyle(color: kPrimaryColor, fontSize: 18, fontWeight: FontWeight.bold)),
                                   const Text("قطعة", style: TextStyle(fontSize: 10)),
                                 ],
