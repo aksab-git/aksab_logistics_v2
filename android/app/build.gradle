@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.aksab.logistics"
-    compileSdk = 36 
+    compileSdk = 34
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
@@ -15,7 +15,7 @@ android {
     defaultConfig {
         applicationId = "com.aksab.logistics"
         minSdk = 23
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
         multiDexEnabled true
@@ -45,7 +45,6 @@ flutter {
 }
 
 dependencies {
-    // التحديث المطلوب لإصدار 2.1.4 كما طلب الـ Log تماماً
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     implementation "androidx.multidex:multidex:2.0.1"
 }
