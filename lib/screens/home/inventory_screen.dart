@@ -38,7 +38,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final Map<String, dynamic> repData = jsonDecode(userDataString);
     final String repCode = repData['rep_code']?.toString() ?? "";
     
-    // --- إضافة التوكن لحل مشكلة الـ 403 ---
+    // استخراج التوكن لحل مشكلة الـ 403
     final String? token = repData['token']; 
 
     if (repCode.isEmpty) {
@@ -52,7 +52,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // الرابط المطابق للـ urls.py في السيرفر مع الـ rep_code
+      // الرابط المطابق للـ urls.py في السيرفر
       final url = Uri.parse('https://aksab.pythonanywhere.com/logistics/my-inventory/?rep_code=$repCode');
       
       final response = await http.get(
@@ -60,15 +60,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          // السطر الذهبي لحل مشكلة الصلاحيات
           if (token != null) 'Authorization': 'Token $token', 
         },
       );
 
-      // --- Console UI Logging ---
+      // Console UI Logging للـ Debugging
       debugPrint("📡 Requesting Inventory: $url");
       debugPrint("📥 Status Code: ${response.statusCode}");
-      debugPrint("📦 Response Body: ${response.body}");
 
       if (response.statusCode == 200) {
         setState(() {
@@ -79,7 +77,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       } else if (response.statusCode == 403) {
         setState(() {
           _isLoading = false;
-          _errorMessage = "خطأ 403: ليس لديك صلاحية الوصول. يرجى التأكد من تسجيل الدخول كفرد لوجستي.";
+          _errorMessage = "خطأ 403: ليس لديك صلاحية الوصول. تأكد من الحساب.";
         });
       } else {
         setState(() {
@@ -95,7 +93,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
-  // دالة مساعدة لتحليل رسائل الخطأ من السيرفر
   String _parseError(String body) {
     try {
       final data = jsonDecode(body);
@@ -129,7 +126,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         physics: const AlwaysScrollableScrollPhysics(),
                         child: Container(
                           height: MediaQuery.of(context).size.height * 0.7,
-                          alignment: Center,
+                          // --- تم التصحيح هنا من Center إلى Alignment.center ---
+                          alignment: Alignment.center, 
                           child: Padding(
                             padding: const EdgeInsets.all(20),
                             child: Column(
