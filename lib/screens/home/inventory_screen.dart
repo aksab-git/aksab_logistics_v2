@@ -1,75 +1,96 @@
 import 'package:flutter/material.dart';
-// تصحيح المسارات لتكون متوافقة مع هيكلة الملفات عندك
-import '../models/logistics_models.dart';
-import '../services/logistics_api.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class InventoryScreen extends StatefulWidget {
-  const InventoryScreen({super.key}); // إضافة الـ key لتحسين الأداء
+  const InventoryScreen({super.key});
 
   @override
-  _InventoryScreenState createState() => _InventoryScreenState();
+  State<InventoryScreen> createState() => _InventoryScreenState();
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
+  List<dynamic> _inventoryItems = [];
+  bool _isLoading = true;
+  final Color kPrimaryColor = const Color(0xFFB21F2D);
+  final Color kSecondaryColor = const Color(0xFF1A2C3D);
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchInventory();
+  }
+
+  Future<void> _fetchInventory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userDataString = prefs.getString('userData');
+    if (userDataString == null) return;
+    
+    final repData = jsonDecode(userDataString);
+    final repCode = repData['rep_code'];
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://aksab.pythonanywhere.com/logistics/api/inventory/?rep_code=$repCode'),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _inventoryItems = jsonDecode(response.body);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching inventory: $e");
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
+    return Directionality(
+      textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('إدارة عهدة المندوب (ERP)'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.local_shipping), text: 'العهدة الحالية'),
-              Tab(icon: Icon(Icons.download_for_offline), text: 'استلام أمانات'), // استبدال الإيموجي بأيقونة رسمية
-            ],
-          ),
+          title: const Text('جرد العهدة الحالية'),
+          backgroundColor: Colors.white,
+          foregroundColor: kSecondaryColor,
+          elevation: 0,
         ),
-        body: TabBarView(
-          children: [
-            _buildCurrentStock(),
-            _buildPendingTransfers(),
-          ],
-        ),
+        body: _isLoading
+            ? Center(child: CircularProgressIndicator(color: kPrimaryColor))
+            : _inventoryItems.isEmpty
+                ? const Center(child: Text("لا توجد عهدة مسجلة حالياً"))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(15),
+                    itemCount: _inventoryItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _inventoryItems[index];
+                      return Card(
+                        margin: const EdgeInsets.bottom(10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: kPrimaryColor.withAlpha(30),
+                            child: Icon(Icons.inventory_2, color: kPrimaryColor),
+                          ),
+                          title: Text(item['product_name'] ?? 'منتج غير معروف',
+                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text("كود الصنف: ${item['product_code']}"),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text("${item['quantity']}",
+                                  style: TextStyle(color: kPrimaryColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                              const Text("قطعة", style: TextStyle(fontSize: 10)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
       ),
     );
   }
-
-  Widget _buildCurrentStock() {
-    return FutureBuilder<List<InventoryItem>>(
-      future: LogisticsAPI.fetchMyInventory(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return const Center(child: Text("خطأ في الاتصال بالسيرفر ⚠️"));
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text("لا توجد بضاعة في العهدة"));
-        }
-
-        return ListView.builder(
-          itemCount: snapshot.data!.length,
-          itemBuilder: (context, index) {
-            final item = snapshot.data![index];
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              child: ListTile(
-                leading: CircleAvatar(child: Text("${index + 1}")),
-                title: Text(item.product, style: const TextStyle(fontWeight: FontWeight.bold)),
-                trailing: Text("${item.quantity} ${item.unit}", 
-                  style: const TextStyle(color: Colors.blue, fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildPendingTransfers() {
-    return const Center(child: Text("هنا ستظهر العهد المرسلة للمندوب لتأكيدها ✅"));
-  }
 }
-
