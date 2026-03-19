@@ -63,7 +63,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     setState(() {
       repData = jsonDecode(userDataString);
       _isDayOpen = prefs.getBool('isDayOpen') ?? false;
-      // قراءة نقاط التأمين من البيانات المحفوظة
+      // قراءة نقاط التأمين من البيانات المحفوظة (حسب تسمية Logistics المتفق عليها)
       _insurancePoints = repData?['insurance_points']?.toString() ?? "0";
       _statusMessage = _isDayOpen ? 'يوم العمل مفتوح - التتبع نشط' : 'يرجى بدء الوردية لإدارة العهدة';
       _isLoading = false;
@@ -74,15 +74,21 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     bool hasPermission = await _handleLocationPermission();
     if (!hasPermission) return;
     setState(() => _isLoading = true);
+    
     try {
       Position position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
 
-      // --- التعديل الجوهري: مطابقة المسار في urls.py ---
-      // حذفنا كلمة /api/ لأنها غير موجودة في الـ urlpatterns بالـ Django
+      // --- استخراج التوكن للتعريف بالسيرفر ---
+      final String? token = repData?['token'];
+
       final response = await http.post(
         Uri.parse('https://aksab.pythonanywhere.com/logistics/work-day/'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          if (token != null) 'Authorization': 'Token $token', // حل الـ 403
+        },
         body: json.encode({
           'rep_code': repData!['rep_code'],
           'action': _isDayOpen ? 'end' : 'start',
@@ -91,16 +97,30 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
         }),
       );
 
-      if (response.statusCode == 200) {
+      // --- UI Console Logging ---
+      debugPrint("📡 API Call: ${response.request?.url}");
+      debugPrint("📥 Status: ${response.statusCode}");
+      debugPrint("📦 Body: ${response.body}");
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final prefs = await SharedPreferences.getInstance();
         setState(() {
           _isDayOpen = !_isDayOpen;
           prefs.setBool('isDayOpen', _isDayOpen);
           _statusMessage = _isDayOpen ? 'تم بدء الوردية بنجاح' : 'تم إنهاء الوردية وتصفية العهدة';
         });
-        _showSnackBar(_isDayOpen ? "🚀 تأكيد العهدة: بدأت ورديتك" : "✅ تم تأكيد استلام الأمانات وإغلاق العهدة");
+        _showSnackBar(_isDayOpen 
+          ? "🚀 تأكيد العهدة: بدأت ورديتك" 
+          : "✅ تم تأكيد استلام الأمانات وإغلاق العهدة");
       } else {
-        _showSnackBar("❌ فشل في تحديث الحالة: ${response.statusCode}");
+        // فحص رسالة الخطأ من السيرفر (حل الـ 400)
+        String serverMsg = response.body;
+        try {
+          var errorData = jsonDecode(response.body);
+          serverMsg = errorData.toString();
+        } catch (_) {}
+        
+        _showSnackBar("❌ فشل (${response.statusCode}): $serverMsg");
       }
     } catch (e) {
       _showSnackBar("❌ خطأ في الاتصال بالسيرفر: $e");
@@ -156,7 +176,10 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           Icon(_isDayOpen ? Icons.online_prediction : Icons.offline_bolt,
               color: _isDayOpen ? kSuccessColor : kErrorColor),
           const SizedBox(width: 10),
-          Text(_statusMessage, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          Expanded(
+            child: Text(_statusMessage, 
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ),
         ],
       ),
     );
@@ -173,7 +196,8 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       ),
       child: Column(
         children: [
-          const Text("إجمالي قيمة الأمانات بالعهدة", style: TextStyle(color: Colors.white70, fontSize: 14)),
+          const Text("إجمالي قيمة الأمانات بالعهدة", 
+            style: TextStyle(color: Colors.white70, fontSize: 14)),
           const SizedBox(height: 10),
           Text(_insurancePoints,
               style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
@@ -250,7 +274,14 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
   }
 
   void _showSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, textAlign: TextAlign.center),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        backgroundColor: kSecondaryColor,
+      ),
+    );
   }
 }
 
