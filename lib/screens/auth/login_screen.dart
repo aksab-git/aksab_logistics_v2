@@ -65,7 +65,6 @@ class _LoginScreenState extends State<LoginScreen> {
       String? fcmToken;
       try {
         fcmToken = await FirebaseMessaging.instance.getToken();
-        // تم استبدال الـ print بـ debugPrint لتجنب مشاكل الـ Analyze
         debugPrint("FCM Token Captured: $fcmToken");
       } catch (e) {
         debugPrint("Failed to get FCM Token: $e");
@@ -77,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
         body: json.encode({
           'phone': phone,
           'password': password,
-          'fcm_token': fcmToken, // إرسال التوكن لربطه في الديجانجو
+          'fcm_token': fcmToken,
         }),
       );
 
@@ -86,9 +85,20 @@ class _LoginScreenState extends State<LoginScreen> {
       if (response.statusCode == 200 && responseData['status'] == 'success') {
         final prefs = await SharedPreferences.getInstance();
 
-        Map<String, dynamic> fullUserData = responseData['data'];
+        // --- تعديل المنطق لضمان عدم ضياع rep_code أو insurance_points ---
+        Map<String, dynamic> fullUserData = {};
+        
+        // 1. إضافة البيانات من داخل Map 'data' إذا وجدت
+        if (responseData['data'] != null) {
+          fullUserData.addAll(responseData['data']);
+        }
+        
+        // 2. سحب البيانات من الـ Root مباشرة لضمان وصولها لصفحة الجرد والمناديب
+        fullUserData['rep_code'] = responseData['rep_code'];
+        fullUserData['insurance_points'] = responseData['insurance_points'];
         fullUserData['fullname'] = responseData['fullname'];
-        fullUserData['uid'] = responseData['user_id'].toString();
+        fullUserData['user_id'] = responseData['user_id'].toString();
+        fullUserData['role'] = responseData['role'];
 
         await prefs.setString('userData', json.encode(fullUserData));
         await prefs.setString('userRole', responseData['role']);
@@ -111,7 +121,8 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _phoneController.text.isEmpty) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator(color: kPrimaryColor)));
+      return const Scaffold(
+          body: Center(child: CircularProgressIndicator(color: kPrimaryColor)));
     }
 
     return Scaffold(
@@ -132,23 +143,31 @@ class _LoginScreenState extends State<LoginScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(25),
-                // تم استبدال withOpacity بـ withAlpha لتجنب الـ Deprecation
-                boxShadow: [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 20)],
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 20)
+                ],
               ),
               child: Form(
                 key: _formKey,
                 child: Column(
                   children: [
-                    const Icon(Icons.account_balance_rounded, size: 70, color: kPrimaryColor),
+                    const Icon(Icons.account_balance_rounded,
+                        size: 70, color: kPrimaryColor),
                     const SizedBox(height: 10),
                     const Text('أكسب ERP',
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: kSecondaryColor)),
+                        style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: kSecondaryColor)),
                     const Text('نظام المبيعات المستقل',
                         style: TextStyle(fontSize: 14, color: Colors.grey)),
                     const SizedBox(height: 30),
-                    _buildField(_phoneController, 'رقم الهاتف / المستخدم', Icons.person_outline),
+                    _buildField(_phoneController, 'رقم الهاتف / المستخدم',
+                        Icons.person_outline),
                     const SizedBox(height: 20),
-                    _buildField(_passwordController, 'كلمة المرور', Icons.lock_outline, isPass: true),
+                    _buildField(_passwordController, 'كلمة المرور',
+                        Icons.lock_outline,
+                        isPass: true),
                     const SizedBox(height: 30),
                     SizedBox(
                       width: double.infinity,
@@ -157,17 +176,27 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: kPrimaryColor,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15)),
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('دخول النظام', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
+                            : const Text('دخول النظام',
+                                style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
                       ),
                     ),
                     if (_errorMessage != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 15),
-                        child: Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500)),
+                        child: Text(_errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.w500)),
                       ),
                   ],
                 ),
@@ -179,7 +208,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildField(TextEditingController controller, String label, IconData icon, {bool isPass = false}) {
+  Widget _buildField(TextEditingController controller, String label,
+      IconData icon,
+      {bool isPass = false}) {
     return TextFormField(
       controller: controller,
       obscureText: isPass,
