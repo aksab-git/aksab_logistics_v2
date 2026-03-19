@@ -28,7 +28,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     if (userDataString == null) return;
     
     final repData = jsonDecode(userDataString);
-    final repCode = repData['rep_code'];
+    final String repCode = repData['rep_code'] ?? "";
 
     try {
       final response = await http.get(
@@ -40,9 +40,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
           _inventoryItems = jsonDecode(response.body);
           _isLoading = false;
         });
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (e) {
-      debugPrint("Error fetching inventory: $e");
       setState(() => _isLoading = false);
     }
   }
@@ -68,7 +69,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     itemBuilder: (context, index) {
                       final item = _inventoryItems[index];
                       return Card(
-                        margin: const EdgeInsets.bottom(10),
+                        margin: const EdgeInsets.only(bottom: 10), // تم التصحيح هنا
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                         child: ListTile(
                           leading: CircleAvatar(
