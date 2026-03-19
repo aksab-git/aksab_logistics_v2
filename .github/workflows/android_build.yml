@@ -1,4 +1,4 @@
-name: Flutter Build (Final Strike)
+name: Flutter Build (APK Only - Temp Signed)
 
 on:
   push:
@@ -17,31 +17,23 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle' # تفعيل كاش جرايدل لتسريع البناء
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true # تفعيل كاش فلاتر
+          cache: true
 
       - name: Get Dependencies
         run: flutter pub get
 
-      - name: Build Release APK
-        # شلنا الـ verbose عشان اللوج ميبقاش ضخم ويسبب بطء، وخليناها عادية
-        run: flutter build apk --release --no-tree-shake-icons
+      # بناء APK Release بتوقيع مؤقت (debug)
+      - name: Build Release APK (Temp Signed)
+        run: flutter build apk --release
 
-      - name: Find and Collect APK
-        if: always() # يشتغل حتى لو الخطوة اللي قبله فشلت عشان نشوف الملفات
-        run: |
-          mkdir -p output
-          echo "Listing all generated APKs..."
-          find build/app/outputs/ -name "*.apk" -print
-          find build/app/outputs/ -name "*.apk" -exec cp {} ./output/aksab_erp_final.apk \;
-          
-      - name: Upload APK
+      # رفع الـ APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Aksab-ERP-Final-Test
-          path: output/*.apk
+          name: Aksab-Captain-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
