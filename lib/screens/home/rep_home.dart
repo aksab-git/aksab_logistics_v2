@@ -4,9 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
-
-// تم تعطيل استيراد صفحة الجرد مؤقتاً لأنها خارج مجلد lib حالياً لإصلاح أخطاء البناء
-// import '../inventory_screen.dart';
+import 'inventory_screen.dart';
 
 // --- الثوابت اللونية لهوية أكسب ERP ---
 const Color kPrimaryColor = Color(0xFFB21F2D);
@@ -77,12 +75,10 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
   Future<void> _toggleDay() async {
     bool hasPermission = await _handleLocationPermission();
     if (!hasPermission) return;
-
     setState(() => _isLoading = true);
     try {
       Position position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
-
       final response = await http.post(
         Uri.parse('https://aksab.pythonanywhere.com/logistics/api/work-day/'),
         headers: {'Content-Type': 'application/json'},
@@ -216,8 +212,10 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           _showSnackBar("قريباً: ماسح الباركود لتأكيد العهدة");
         }),
         _menuItem("جرد العهدة", Icons.inventory_2_outlined, Colors.teal, () {
-          // تم تعطيل الانتقال لصفحة الجرد مؤقتاً لحين إعادة الملف للمشروع
-          _showSnackBar("جاري تحديث نظام الجرد...");
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const InventoryScreen()),
+          );
         }),
         _menuItem("قائمة العملاء", Icons.people_alt_outlined, Colors.orange, () {
           _showSnackBar("قريباً: إدارة خط السير");
