@@ -27,17 +27,16 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      # بناء نسخة الـ Release - هتكون أصغر بكتير وأسرع
+      # بناء نسخة الـ Release
+      # ملحوظة: شلنا || true عشان لو فيه خطأ برمي يظهر فوراً في الـ Actions
       - name: Build Release APK
-        run: flutter build apk --release --no-tree-shake-icons || true
+        run: flutter build apk --release --no-tree-shake-icons
 
-      # خطوة "الصياد" لجمع النسخة النهائية
+      # خطوة تجميع النسخة النهائية في مجلد مستقل
       - name: Find and Collect APK
         run: |
           mkdir -p output
-          find . -name "*release.apk" -exec cp {} ./output/aksab_logistics_v2_release.apk \;
-          # لو ملقاش ريليس ياخد أي حاجة تانية احتياطي
-          find . -name "*.apk" -not -path "./output/*" -exec cp {} ./output/ \;
+          find build/app/outputs/flutter-apk/ -name "*release.apk" -exec cp {} ./output/aksab_logistics_v2_release.apk \;
           ls -R output
 
       - name: Upload APK Artifact
