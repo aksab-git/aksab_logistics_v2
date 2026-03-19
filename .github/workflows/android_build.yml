@@ -1,4 +1,4 @@
-name: Flutter Build (Release APK - No Debug)
+name: Flutter Build (Release APK - Error Tracked)
 
 on:
   push:
@@ -27,19 +27,18 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      # بناء نسخة الـ Release (نفس منطق السماح بالفشل لضمان استمرار الصياد)
+      # بناء الـ Release بدون || true عشان لو فيه خطأ يظهر فوراً
       - name: Build Release APK
-        run: flutter build apk --release --no-tree-shake-icons || true
+        run: flutter build apk --release --no-tree-shake-icons
 
-      # خطوة "الصياد" المفضلة عندك - بتلم أي APK طلع في أي مكان
+      # خطوة التجميع (هتشتغل فقط لو البناء نجح)
       - name: Find and Collect APK
         run: |
           mkdir -p output
-          find . -name "*release.apk" -exec cp {} ./output/aksab_logistics_v2_release.apk \;
-          # لو ملقاش ريليس ياخد أي حاجة تانية احتياطي
-          find . -name "*.apk" -not -path "./output/*" -exec cp {} ./output/ \;
+          find build/app/outputs/flutter-apk/ -name "*release.apk" -exec cp {} ./output/aksab_logistics_v2_release.apk \;
           ls -R output
 
+      # الرفع النهائي
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
