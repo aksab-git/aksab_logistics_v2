@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-// استيراد الصفحة الجديدة (تأكد من مسار الملف لديك)
+// استيراد الصفحة الجديدة - تأكد أن المسار صحيح في مشروعك
 import '../incoming_transfers_page.dart'; 
 
 class InventoryScreen extends StatefulWidget {
@@ -17,28 +17,32 @@ class _InventoryScreenState extends State<InventoryScreen> {
   bool _isLoading = true;
   String _errorMessage = "";
   
-  // حقل جديد لمعرفة إذا كان هناك عهد منتظرة التأكيد
+  // حقل متابعة العهد المعلقة (تأمين عهدة الطلب)
   int _pendingTransfersCount = 0;
 
+  // الهوية اللونية واللوجستية
   final Color kPrimaryColor = const Color(0xFFB21F2D);
   final Color kSecondaryColor = const Color(0xFF1A2C3D);
   final Color kAccentColor = const Color(0xFF2E7D32); 
-  final Color kWarningColor = Colors.orange.shade700; // لون التنبيه للعهد المعلقة
+  final Color kWarningColor = Colors.orange.shade700; // لون تنبيه العهد المعلقة
 
   @override
   void initState() {
     super.initState();
     _fetchInventory();
-    _checkPendingTransfers(); // فحص العهد المعلقة عند الفتح
+    _checkPendingTransfers(); // فحص العهد المعلقة عند فتح الشاشة
   }
 
-  // دالة لجلب الجرد الحالي (العهدة المستلمة فعلياً)
+  // جلب بيانات عهدة السيارة الحالية
   Future<void> _fetchInventory() async {
     final prefs = await SharedPreferences.getInstance();
     final userDataString = prefs.getString('userData');
 
     if (userDataString == null) {
-      setState(() { _isLoading = false; _errorMessage = "انتهت الجلسة"; });
+      setState(() { 
+        _isLoading = false; 
+        _errorMessage = "انتهت الجلسة، يرجى إعادة تسجيل الدخول"; 
+      });
       return;
     }
 
@@ -50,6 +54,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       final url = Uri.parse('https://aksab.pythonanywhere.com/logistics/my-inventory/?rep_code=$repCode');
       final response = await http.get(url, headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         if (token != null) 'Authorization': 'Token $token',
       }).timeout(const Duration(seconds: 15));
 
@@ -58,14 +63,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
         setState(() {
           _inventoryItems = data;
           _isLoading = false;
+          _errorMessage = "";
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "تعذر جلب البيانات (${response.statusCode})";
         });
       }
     } catch (e) {
-      setState(() { _isLoading = false; _errorMessage = "خطأ في الاتصال"; });
+      setState(() { 
+        _isLoading = false; 
+        _errorMessage = "خطأ في الاتصال بالسيرفر"; 
+      });
     }
   }
 
-  // دالة فحص العهد المعلقة (تغيير لون الزرار)
+  // فحص وجود عهد بانتظار "تأكيد استلام الأمانات"
   Future<void> _checkPendingTransfers() async {
     final prefs = await SharedPreferences.getInstance();
     final userDataString = prefs.getString('userData');
@@ -76,7 +90,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final String? token = repData['token'];
 
     try {
-      // نطلب التحويلات ونفلتر التي حالتها IN_TRANSIT فقط
       final url = Uri.parse('https://aksab.pythonanywhere.com/logistics/my-transfers/?rep_code=$repCode');
       final response = await http.get(url, headers: {
         if (token != null) 'Authorization': 'Token $token',
@@ -84,11 +97,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
-        // نعد كم تحويل حالته "في الطريق"
+        // نعد فقط التحويلات التي في عهدة الناقل (IN_TRANSIT)
         int count = data.where((t) => t['status'] == 'IN_TRANSIT').length;
         setState(() { _pendingTransfersCount = count; });
       }
-    } catch (_) { /* صامت لعدم إزعاج المستخدم */ }
+    } catch (_) {
+      // فشل صامت لعدم تعطيل واجهة الجرد الأساسية
+    }
   }
 
   @override
@@ -109,7 +124,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           foregroundColor: kSecondaryColor,
           elevation: 0,
         ),
-        // التعديل الجوهري: الزرار يتغير لونه ويقوم بالتوجيه
+        // زرار عائم ذكي: يتغير لونه وينبه المندوب بالعهد المعلقة
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () async {
             final prefs = await SharedPreferences.getInstance();
@@ -117,7 +132,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             if (userDataString == null) return;
             final repData = jsonDecode(userDataString);
 
-            // الانتقال لصفحة تأكيد الاستلام
+            // توجيه مباشر لصفحة تأكيد استلام الأمانات
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -127,11 +142,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
               ),
             ).then((_) {
-              _fetchInventory(); // تحديث الجرد عند العودة
-              _checkPendingTransfers(); // تحديث التنبيه
+              // عند العودة: نحدث الجرد والعداد فوراً
+              _fetchInventory(); 
+              _checkPendingTransfers(); 
             });
           },
-          // تغيير اللون إذا كان هناك نقلات منتظرة
           backgroundColor: _pendingTransfersCount > 0 ? kWarningColor : kSecondaryColor,
           icon: Stack(
             clipBehavior: Clip.none,
@@ -148,7 +163,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ],
           ),
           label: Text(
-            _pendingTransfersCount > 0 ? "تأكيد عهدة معلقة ($ _pendingTransfersCount)" : "تأكيد استلام الأمانات",
+            _pendingTransfersCount > 0 ? "تأكيد عهدة معلقة ($_pendingTransfersCount)" : "تأكيد استلام الأمانات",
             style: const TextStyle(fontFamily: 'Cairo', color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
@@ -159,8 +174,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
               child: _isLoading
                   ? Center(child: CircularProgressIndicator(color: kPrimaryColor))
                   : RefreshIndicator(
-                      onRefresh: () async { await _fetchInventory(); await _checkPendingTransfers(); },
-                      child: _errorMessage.isNotEmpty ? _buildErrorUI() : _inventoryItems.isEmpty ? _buildEmptyUI() : _buildInventoryList(),
+                      onRefresh: () async { 
+                        await _fetchInventory(); 
+                        await _checkPendingTransfers(); 
+                      },
+                      color: kPrimaryColor,
+                      child: _errorMessage.isNotEmpty 
+                          ? _buildErrorUI() 
+                          : _inventoryItems.isEmpty ? _buildEmptyUI() : _buildInventoryList(),
                     ),
             ),
           ],
@@ -169,13 +190,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  // ... (باقي الـ Widgets: _buildSummaryHeader, _buildInventoryList, إلخ تبقى كما هي في الكات القديم)
-  
   Widget _buildSummaryHeader() {
     int totalQty = _inventoryItems.fold(0, (sum, item) => sum + (int.parse(item['stock_quantity'].toString())));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-      decoration: BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200))
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -221,7 +243,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
               children: [
                 Container(
                   width: 60, height: 60,
-                  decoration: BoxDecoration(color: kPrimaryColor.withOpacity(0.05), borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(
+                    color: kPrimaryColor.withOpacity(0.05), 
+                    borderRadius: BorderRadius.circular(10)
+                  ),
                   child: Icon(Icons.inventory_2, color: kPrimaryColor, size: 30),
                 ),
                 const SizedBox(width: 15),
@@ -271,6 +296,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           const Icon(Icons.error_outline, color: Colors.orange, size: 50),
           const SizedBox(height: 15),
           Text(_errorMessage, textAlign: TextAlign.center, style: const TextStyle(fontFamily: 'Cairo')),
+          const SizedBox(height: 10),
           TextButton(onPressed: _fetchInventory, child: const Text("تحديث البيانات")),
         ],
       ),
