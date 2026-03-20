@@ -35,6 +35,37 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     _checkUserDataAndDayStatus();
   }
 
+  // --- دالة تسجيل الخروج ومسح الجلسة ---
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // إظهار تأكيد قبل تسجيل الخروج
+    bool confirm = await showDialog(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text("تسجيل الخروج"),
+          content: const Text("هل تريد إغلاق الجلسة الحالية؟ سيتم مسح بيانات التوكن المؤقتة."),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("إلغاء")),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true), 
+              child: const Text("خروج", style: TextStyle(color: kErrorColor))
+            ),
+          ],
+        ),
+      ),
+    ) ?? false;
+
+    if (confirm) {
+      await prefs.clear(); // مسح كل البيانات المخزنة نهائياً
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+    }
+  }
+
   Future<bool> _handleLocationPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -63,7 +94,6 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     setState(() {
       repData = jsonDecode(userDataString);
       _isDayOpen = prefs.getBool('isDayOpen') ?? false;
-      // قراءة نقاط التأمين من البيانات المحفوظة (حسب تسمية Logistics المتفق عليها)
       _insurancePoints = repData?['insurance_points']?.toString() ?? "0";
       _statusMessage = _isDayOpen ? 'يوم العمل مفتوح - التتبع نشط' : 'يرجى بدء الوردية لإدارة العهدة';
       _isLoading = false;
@@ -79,7 +109,6 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       Position position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
 
-      // --- استخراج التوكن للتعريف بالسيرفر ---
       final String? token = repData?['token'];
 
       final response = await http.post(
@@ -87,7 +116,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          if (token != null) 'Authorization': 'Token $token', // حل الـ 403
+          if (token != null) 'Authorization': 'Token $token', 
         },
         body: json.encode({
           'rep_code': repData!['rep_code'],
@@ -96,11 +125,6 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           'lng': position.longitude,
         }),
       );
-
-      // --- UI Console Logging ---
-      debugPrint("📡 API Call: ${response.request?.url}");
-      debugPrint("📥 Status: ${response.statusCode}");
-      debugPrint("📦 Body: ${response.body}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final prefs = await SharedPreferences.getInstance();
@@ -113,14 +137,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           ? "🚀 تأكيد العهدة: بدأت ورديتك" 
           : "✅ تم تأكيد استلام الأمانات وإغلاق العهدة");
       } else {
-        // فحص رسالة الخطأ من السيرفر (حل الـ 400)
-        String serverMsg = response.body;
-        try {
-          var errorData = jsonDecode(response.body);
-          serverMsg = errorData.toString();
-        } catch (_) {}
-        
-        _showSnackBar("❌ فشل (${response.statusCode}): $serverMsg");
+        _showSnackBar("❌ فشل المزامنة مع السيرفر");
       }
     } catch (e) {
       _showSnackBar("❌ خطأ في الاتصال بالسيرفر: $e");
@@ -141,6 +158,14 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           backgroundColor: Colors.white,
           foregroundColor: kSecondaryColor,
           elevation: 0,
+          // --- إضافة زر تسجيل الخروج هنا ---
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout_rounded, color: kErrorColor),
+              onPressed: _logout,
+              tooltip: "تسجيل الخروج",
+            ),
+          ],
         ),
         body: SafeArea(
           child: _isLoading
@@ -284,4 +309,3 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     );
   }
 }
-
