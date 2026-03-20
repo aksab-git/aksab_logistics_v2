@@ -14,6 +14,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
   List<dynamic> _inventoryItems = [];
   bool _isLoading = true;
   String _errorMessage = "";
+  
+  // متغيرات للتصحيح (Debug Variables) لغرض العرض في الـ UI
+  String debugRepCode = "جاري الفحص...";
+  String debugTokenStatus = "غير موجود";
+  String debugFullUrl = "";
+
   final Color kPrimaryColor = const Color(0xFFB21F2D);
   final Color kSecondaryColor = const Color(0xFF1A2C3D);
 
@@ -27,6 +33,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final prefs = await SharedPreferences.getInstance();
     final userDataString = prefs.getString('userData');
 
+    // 🕵️ كونسول: فحص البيانات المحفوظة
+    debugPrint("🔍 [DEBUG] Raw UserData from Prefs: $userDataString");
+
     if (userDataString == null) {
       setState(() {
         _isLoading = false;
@@ -39,33 +48,37 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final String repCode = repData['rep_code']?.toString() ?? "";
     final String? token = repData['token'] ?? repData['key']; 
 
-    if (repCode.isEmpty) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = "كود المندوب غير معرف تقنياً";
-      });
-      return;
-    }
-
     setState(() {
+      debugRepCode = repCode.isEmpty ? "🔴 فارغ" : repCode;
+      debugTokenStatus = (token != null && token.length > 10) ? "🟢 صالح (ينتهي بـ ${token.substring(token.length - 5)})" : "🔴 غير صالح";
       _isLoading = true;
       _errorMessage = "";
     });
 
     try {
       final url = Uri.parse('https://aksab.pythonanywhere.com/logistics/my-inventory/?rep_code=$repCode');
-      
+      debugFullUrl = url.toString();
+
+      // 🕵️ كونسول: تفاصيل الـ Request
+      debugPrint("🚀 [API REQUEST] URL: $debugFullUrl");
+      debugPrint("🚀 [API REQUEST] Headers: {'Authorization': 'Token ${token?.substring(0, 5)}...', 'Content-Type': 'application/json'}");
+
       final response = await http.get(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': 'Token $token', 
+          if (token != null) 'Authorization': 'Token $token', 
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 15));
+
+      // 🕵️ كونسول: تفاصيل الـ Response
+      debugPrint("📥 [API RESPONSE] Status Code: ${response.statusCode}");
+      debugPrint("📥 [API RESPONSE] Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+        debugPrint("✅ [DEBUG] Items Count: ${data.length}");
         setState(() {
           _inventoryItems = data;
           _isLoading = false;
@@ -73,18 +86,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
       } else if (response.statusCode == 403) {
         setState(() {
           _isLoading = false;
-          _errorMessage = "عفواً! حسابك لا يملك صلاحية الوصول لمخزن السيارة.\nتأكد من ربط حسابك بمخزن نشط.";
+          _errorMessage = "خطأ 403: السيرفر يرفض وصول هذا المندوب.\nتأكد من ربط الحساب بمخزن السيارة في Django Admin.";
         });
       } else {
         setState(() {
           _isLoading = false;
-          _errorMessage = "خطأ في جلب البيانات (${response.statusCode})";
+          _errorMessage = "خطأ غير متوقع (${response.statusCode})\nالرد: ${response.body}";
         });
       }
     } catch (e) {
+      debugPrint("❌ [CRITICAL ERROR]: $e");
       setState(() {
         _isLoading = false;
-        _errorMessage = "تأكد من اتصالك بالإنترنت وحاول مرة أخرى";
+        _errorMessage = "حدث خطأ أثناء الاتصال: $e";
       });
     }
   }
@@ -96,63 +110,66 @@ class _InventoryScreenState extends State<InventoryScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
         appBar: AppBar(
-          title: const Text('جرد عهدة السيارة',
-              style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+          title: const Text('جرد عهدة السيارة', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
           centerTitle: true,
           backgroundColor: Colors.white,
           foregroundColor: kSecondaryColor,
           elevation: 0.5,
         ),
-        body: _isLoading
-            ? Center(child: CircularProgressIndicator(color: kPrimaryColor))
-            : RefreshIndicator(
-                onRefresh: _fetchInventory,
-                color: kPrimaryColor,
-                child: _errorMessage.isNotEmpty
-                    ? _buildErrorUI()
-                    : _inventoryItems.isEmpty
-                        ? _buildEmptyUI()
-                        : _buildInventoryList(),
+        body: Column(
+          children: [
+            // 🟥 الجزء ده للتصحيح فقط (Debug Panel) - هيفهمنا الموبايل باعت إيه
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              color: Colors.black.withOpacity(0.05),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("🛠️ فحص الربط:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kPrimaryColor)),
+                  Text("كود المندوب المسجل: $debugRepCode", style: const TextStyle(fontSize: 11)),
+                  Text("حالة التوكن: $debugTokenStatus", style: const TextStyle(fontSize: 11)),
+                  Text("الرابط المستخدم: $debugFullUrl", style: const TextStyle(fontSize: 10, color: Colors.blue), overflow: TextOverflow.ellipsis),
+                ],
               ),
+            ),
+            Expanded(
+              child: _isLoading
+                  ? Center(child: CircularProgressIndicator(color: kPrimaryColor))
+                  : RefreshIndicator(
+                      onRefresh: _fetchInventory,
+                      color: kPrimaryColor,
+                      child: _errorMessage.isNotEmpty
+                          ? _buildErrorUI()
+                          : _inventoryItems.isEmpty
+                              ? _buildEmptyUI()
+                              : _buildInventoryList(),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  // --- باقي الـ Widgets (List, Error, Empty) كما هي ---
   Widget _buildErrorUI() {
-    return ListView(
-      children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-        const Icon(Icons.error_outline_rounded, color: Colors.orange, size: 80),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 30),
-          child: Text(_errorMessage,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.black87, fontSize: 16, fontFamily: 'Cairo')),
-        ),
-        const SizedBox(height: 30),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 80),
-          child: ElevatedButton(
-            onPressed: _fetchInventory,
-            style: ElevatedButton.styleFrom(backgroundColor: kSecondaryColor),
-            child: const Text("تحديث البيانات", style: TextStyle(color: Colors.white)),
-          ),
-        ),
-      ],
-    );
+    return ListView(children: [
+      const SizedBox(height: 50),
+      const Icon(Icons.bug_report, color: Colors.orange, size: 60),
+      Padding(
+        padding: const EdgeInsets.all(20),
+        child: Text(_errorMessage, textAlign: TextAlign.center, style: const TextStyle(fontFamily: 'Cairo')),
+      ),
+      Center(child: ElevatedButton(onPressed: _fetchInventory, child: const Text("إعادة المحاولة")))
+    ]);
   }
 
   Widget _buildEmptyUI() {
-    return ListView(
-      children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-        const Center(
-          child: Text("لا توجد أصناف في عهدتك حالياً",
-              style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo')),
-        ),
-      ],
-    );
+    return ListView(children: [
+      const SizedBox(height: 100),
+      const Center(child: Text("المخزن فارغ برمجياً (JSON [])", style: TextStyle(color: Colors.grey))),
+    ]);
   }
 
   Widget _buildInventoryList() {
@@ -161,36 +178,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
       itemCount: _inventoryItems.length,
       itemBuilder: (context, index) {
         final item = _inventoryItems[index];
-        
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: kPrimaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.local_shipping_outlined, color: kPrimaryColor),
-            ),
-            title: Text(item['product_name'] ?? 'منتج غير معرف',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            subtitle: Padding(
-              // تم التصحيح هنا من EdgeInsets.top لـ EdgeInsets.only
-              padding: const EdgeInsets.only(top: 4), 
-              child: Text("كود الصنف: ${item['product_code'] ?? 'N/A'}"),
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text("${item['stock_quantity'] ?? 0}",
-                    style: TextStyle(color: kPrimaryColor, fontSize: 20, fontWeight: FontWeight.bold)),
-                const Text("قطعة", style: TextStyle(fontSize: 10, color: Colors.grey)),
-              ],
-            ),
+            title: Text(item['product_name'] ?? 'صنف مجهول'),
+            subtitle: Text("كود: ${item['product_code']}"),
+            trailing: Text("${item['stock_quantity'] ?? 0} قطعة", 
+              style: TextStyle(fontWeight: FontWeight.bold, color: kPrimaryColor)),
           ),
         );
       },
