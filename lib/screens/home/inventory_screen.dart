@@ -30,21 +30,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
     if (userDataString == null) {
       setState(() {
         _isLoading = false;
-        _errorMessage = "انتهت الجلسة، يرجى إعادة تسجيل الدخول لتحديث العهدة";
+        _errorMessage = "انتهت الجلسة، يرجى إعادة تسجيل الدخول";
       });
       return;
     }
 
     final Map<String, dynamic> repData = jsonDecode(userDataString);
     final String repCode = repData['rep_code']?.toString() ?? "";
-    
-    // محاولة جلب التوكن بأكثر من مفتاح لضمان التوافق مع السيرفر
-    final String? token = repData['token'] ?? repData['access_token'] ?? repData['key']; 
+    final String? token = repData['token'] ?? repData['key']; 
 
     if (repCode.isEmpty) {
       setState(() {
         _isLoading = false;
-        _errorMessage = "كود المندوب غير معرف، يرجى مراجعة الإدارة";
+        _errorMessage = "كود المندوب غير معرف تقنياً";
       });
       return;
     }
@@ -55,6 +53,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     });
 
     try {
+      // الرابط يرسل الكود لفلترة الأصناف المرتبطة بمخزن هذا المندوب
       final url = Uri.parse('https://aksab.pythonanywhere.com/logistics/my-inventory/?rep_code=$repCode');
       
       final response = await http.get(
@@ -62,15 +61,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          // تأكد من المسافة بعد كلمة Token
-          if (token != null) 'Authorization': 'Token $token', 
+          'Authorization': 'Token $token', 
         },
       ).timeout(const Duration(seconds: 10));
 
-      debugPrint("📥 Inventory Status: ${response.statusCode}");
-
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes)); // دعم اللغة العربية
+        final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
         setState(() {
           _inventoryItems = data;
           _isLoading = false;
@@ -78,23 +74,18 @@ class _InventoryScreenState extends State<InventoryScreen> {
       } else if (response.statusCode == 403) {
         setState(() {
           _isLoading = false;
-          _errorMessage = "خطأ 403: الحساب غير مصرح له بالوصول للعهدة.\nتأكد من تفعيل صلاحيات اللوجستيات لحسابك.";
-        });
-      } else if (response.statusCode == 401) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = "جلسة العمل غير صالحة، يرجى تسجيل الخروج والدخول مرة أخرى.";
+          _errorMessage = "عفواً! حسابك لا يملك صلاحية الوصول لمخزن السيارة.\nتأكد من ربط حسابك بمخزن نشط.";
         });
       } else {
         setState(() {
           _isLoading = false;
-          _errorMessage = "السيرفر غير مستجيب حالياً (${response.statusCode})";
+          _errorMessage = "خطأ في جلب البيانات (${response.statusCode})";
         });
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = "تعذر الاتصال بالشبكة، تأكد من الإنترنت وحاول مرة أخرى.";
+        _errorMessage = "تأكد من اتصالك بالإنترنت وحاول مرة أخرى";
       });
     }
   }
@@ -106,7 +97,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
         appBar: AppBar(
-          title: const Text('جرد العهدة (الأمانات)',
+          title: const Text('جرد عهدة السيارة',
               style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
           centerTitle: true,
           backgroundColor: Colors.white,
@@ -129,10 +120,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _buildErrorUI() {
-    return ListView( // ListView ليدعم RefreshIndicator
+    return ListView(
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-        const Icon(Icons.lock_person_rounded, color: Colors.orange, size: 80),
+        const Icon(Icons.error_outline_rounded, color: Colors.orange, size: 80),
         const SizedBox(height: 20),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 30),
@@ -145,11 +136,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 80),
           child: ElevatedButton(
             onPressed: _fetchInventory,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kSecondaryColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: kSecondaryColor),
             child: const Text("تحديث البيانات", style: TextStyle(color: Colors.white)),
           ),
         ),
@@ -162,7 +149,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.3),
         const Center(
-          child: Text("لا توجد أمانات في عهدتك حالياً",
+          child: Text("لا توجد أصناف في عهدتك حالياً",
               style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo')),
         ),
       ],
@@ -175,6 +162,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       itemCount: _inventoryItems.length,
       itemBuilder: (context, index) {
         final item = _inventoryItems[index];
+        
+        // ملاحظة: الحقول تم تعديلها لتطابق InventoryItem في Django
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -186,17 +175,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 color: kPrimaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(Icons.inventory_2_outlined, color: kPrimaryColor),
+              child: Icon(Icons.local_shipping_outlined, color: kPrimaryColor),
             ),
-            title: Text(item['product_name'] ?? 'صنف غير مسمى',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text("كود الصنف: ${item['product_code'] ?? '---'}"),
+            // نستخدم حقل product_name القادم من السيرفر (أو product__name في الـ Query)
+            title: Text(item['product_name'] ?? 'منتج غير معرف',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            subtitle: Padding(
+              padding: const EdgeInsets.top(4),
+              child: Text("كود الصنف: ${item['product_code'] ?? 'N/A'}"),
+            ),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text("${item['quantity'] ?? 0}",
-                    style: TextStyle(color: kPrimaryColor, fontSize: 18, fontWeight: FontWeight.bold)),
-                const Text("قطعة", style: TextStyle(fontSize: 11)),
+                // تعديل الحقل ليكون stock_quantity بناءً على الـ Model
+                Text("${item['stock_quantity'] ?? 0}",
+                    style: TextStyle(color: kPrimaryColor, fontSize: 20, fontWeight: FontWeight.bold)),
+                const Text("قطعة", style: TextStyle(fontSize: 10, color: Colors.grey)),
               ],
             ),
           ),
