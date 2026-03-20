@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,53 +16,75 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
-  // دالة الدخول للمنظومة
+  // 1. دالة جلب توكن الإشعارات (FCM) لربط الجهاز بالعهدة
+  Future<String?> _getDeviceToken() async {
+    try {
+      FirebaseMessaging messaging = FirebaseMessaging.instance;
+      // التأكد من الحصول على الإذن (لاندرويد 13 فما فوق)
+      NotificationSettings settings = await messaging.requestPermission(
+        alert: true, badge: true, sound: true,
+      );
+      
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        String? token = await messaging.getToken();
+        debugPrint("🚀 Device FCM Token: $token");
+        return token;
+      }
+    } catch (e) {
+      debugPrint("❌ Failed to get FCM Token: $e");
+    }
+    return null;
+  }
+
+  // 2. دالة الدخول للمنظومة
   Future<void> _login() async {
     if (_phoneController.text.isEmpty || _passwordController.text.isEmpty) {
-      _showSnackBar("يرجى إدخال رقم الهاتف وكلمة المرور");
+      _showSnackBar("يرجى إدخال بيانات الدخول");
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
+      // جلب توكن الجهاز قبل الإرسال
+      String? fcmToken = await _getDeviceToken();
+
       final response = await http.post(
         Uri.parse('https://aksab.pythonanywhere.com/api/login/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'phone': _phoneController.text,
           'password': _passwordController.text,
-          // 'fcm_token': "يمكن إضافته هنا لاحقاً للإشعارات",
+          'fcm_token': fcmToken, // 🔑 الربط اللحظي لتلقي تنبيهات العهدة
         }),
       );
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['status'] == 'success') {
-        // 1. حفظ التوكن والبيانات في ذاكرة الهاتف (Session)
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', data['token']);
         await prefs.setString('role', data['role']);
         await prefs.setString('fullname', data['fullname']);
         
-        // حفظ بيانات العهدة الصريحة
+        // حفظ نقاط التأمين الحالية للعهدة
         if (data['data'] != null) {
           await prefs.setString('insurance_points', data['data']['insurance_points'].toString());
+          await prefs.setString('rep_code', data['data']['rep_code'].toString());
         }
 
-        // 2. التوجيه بناءً على الصلاحية
         if (mounted) {
           if (data['role'] == 'sales_rep') {
             Navigator.pushReplacementNamed(context, '/rep_home');
-          } else if (data['role'] == 'admin') {
+          } else {
             Navigator.pushReplacementNamed(context, '/admin_dashboard');
           }
         }
       } else {
-        _showSnackBar(data['message'] ?? "بيانات الدخول غير صحيحة");
+        _showSnackBar(data['message'] ?? "خطأ في بيانات المنظومة");
       }
     } catch (e) {
-      _showSnackBar("فشل الاتصال بخادم المنظومة: $e");
+      _showSnackBar("فشل في مزامنة البيانات مع السيرفر");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -81,39 +104,31 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // شعار المنظومة (يمكن استبداله بـ Image.asset)
-              const Icon(Icons.local_shipping_rounded, size: 80, color: Color(0xFFB21F2D)),
-              const SizedBox(height: 16),
-              const Text(
-                "أكسب ERP",
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1A2C3D)),
-              ),
-              const Text("منظومة إدارة العهدة والخدمات اللوجستية", style: TextStyle(color: Colors.grey)),
+              const Icon(Icons.inventory_2_outlined, size: 90, color: Color(0xFFB21F2D)),
+              const SizedBox(height: 10),
+              const Text("أكسب ERP", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+              const Text("إدارة عهدة المندوب والتحصيل", style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 40),
-              
               TextField(
                 controller: _phoneController,
-                keyboardType: TextInputType.phone,
                 decoration: InputDecoration(
-                  labelText: "رقم الهاتف / اسم المستخدم",
-                  prefixIcon: const Icon(Icons.phone_android),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  labelText: "رقم الهاتف المسجل",
+                  prefixIcon: const Icon(Icons.person_pin_outlined),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 15),
               TextField(
                 controller: _passwordController,
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: "كلمة المرور",
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.vpn_key_outlined),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
                 ),
               ),
               const SizedBox(height: 30),
-              
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -121,16 +136,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFB21F2D),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                   ),
                   child: _isLoading 
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("تأكيد الدخول للمنظومة", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    : const Text("دخول وتأكيد الاتصال", style: TextStyle(color: Colors.white, fontSize: 18)),
                 ),
               ),
-              const SizedBox(height: 20),
-              const Text("نسيت كلمة المرور؟ اتصل بمدير النظام", style: TextStyle(fontSize: 12, color: Colors.blueGrey)),
             ],
           ),
         ),
