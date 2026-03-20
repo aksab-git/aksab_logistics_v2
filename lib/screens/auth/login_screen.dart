@@ -32,6 +32,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final String? userRole = prefs.getString('userRole');
     final String? userData = prefs.getString('userData');
 
+    debugPrint("🔄 [CHECK] Existing Role: $userRole");
+    debugPrint("🔄 [CHECK] Existing Data: $userData");
+
     if (userRole != null && userData != null) {
       if (mounted) _navigateUser(userRole);
     } else {
@@ -43,7 +46,6 @@ class _LoginScreenState extends State<LoginScreen> {
     if (role == 'sales_rep') {
       Navigator.of(context).pushReplacementNamed('/rep_home');
     } else {
-      // توجيه افتراضي للمديرين والمشرفين للمحافظة على الربط
       Navigator.of(context).pushReplacementNamed('/admin_dashboard');
     }
   }
@@ -60,35 +62,54 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     try {
-      // --- جلب الـ FCM Token للإشعارات ---
+      // 1. جلب توكن الإشعارات (FCM)
       String? fcmToken;
       try {
         fcmToken = await FirebaseMessaging.instance.getToken();
-        print("🚀 FCM Token Captured: $fcmToken");
+        debugPrint("🚀 [FCM] Token Captured: $fcmToken");
       } catch (e) {
-        print("⚠️ Failed to get FCM Token: $e");
+        debugPrint("⚠️ [FCM] Failed: $e");
       }
 
+      // 2. إرسال طلب تسجيل الدخول
+      final url = Uri.parse('https://aksab.pythonanywhere.com/logistics/login/');
+      debugPrint("📡 [API POST] Sending to: $url");
+
       final response = await http.post(
-        Uri.parse('https://aksab.pythonanywhere.com/logistics/login/'),
+        url,
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'phone': phone,
           'password': password,
-          'fcm_token': fcmToken, // إرسال التوكن لربطه في الديجانجو
+          'fcm_token': fcmToken,
         }),
       );
 
+      debugPrint("📥 [API RESPONSE] Status: ${response.statusCode}");
       final responseData = json.decode(utf8.decode(response.bodyBytes));
+      debugPrint("📥 [API BODY]: $responseData");
 
       if (response.statusCode == 200 && responseData['status'] == 'success') {
         final prefs = await SharedPreferences.getInstance();
         
-        Map<String, dynamic> fullUserData = responseData['data'];
-        fullUserData['fullname'] = responseData['fullname'];
-        fullUserData['uid'] = responseData['user_id'].toString();
+        // 🛠️ هيكلة البيانات بشكل منظم (هنا الحل لمشكلة التوكن)
+        Map<String, dynamic> rawData = responseData['data'] ?? {};
+        
+        // استخراج التوكن من أي مكان محتمل في الرد
+        String extractedToken = responseData['token'] ?? responseData['key'] ?? rawData['token'] ?? '';
+        
+        Map<String, dynamic> structuredUserData = {
+          'token': extractedToken,
+          'rep_code': rawData['rep_code'] ?? '',
+          'fullname': responseData['fullname'] ?? rawData['fullname'] ?? 'مستخدم أكسب',
+          'uid': (responseData['user_id'] ?? rawData['id']).toString(),
+          'phone': phone,
+          'role': responseData['role'],
+        };
 
-        await prefs.setString('userData', json.encode(fullUserData));
+        // حفظ البيانات منظمة
+        debugPrint("💾 [STORAGE] Saving structuredUserData: $structuredUserData");
+        await prefs.setString('userData', json.encode(structuredUserData));
         await prefs.setString('userRole', responseData['role']);
         
         if (mounted) _navigateUser(responseData['role']);
@@ -96,7 +117,8 @@ class _LoginScreenState extends State<LoginScreen> {
         _showError(responseData['message'] ?? '❌ بيانات الدخول غير صحيحة');
       }
     } catch (e) {
-      _showError('❌ خطأ في الاتصال بالسيرفر');
+      debugPrint("❌ [CRITICAL ERROR]: $e");
+      _showError('❌ خطأ في الاتصال بالسيرفر: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -112,61 +134,64 @@ class _LoginScreenState extends State<LoginScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator(color: kPrimaryColor)));
     }
 
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFF5F7FA), Color(0xFFEDEFF2)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFF5F7FA), Color(0xFFEDEFF2)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
           ),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(30.0),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
+          child: Center(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(30.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20)],
-              ),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    const Icon(Icons.account_balance_rounded, size: 70, color: kPrimaryColor),
-                    const SizedBox(height: 10),
-                    const Text('أكسب ERP',
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: kSecondaryColor)),
-                    const Text('نظام المبيعات المستقل',
-                        style: TextStyle(fontSize: 14, color: Colors.grey)),
-                    const SizedBox(height: 30),
-                    _buildField(_phoneController, 'رقم الهاتف / المستخدم', Icons.person_outline),
-                    const SizedBox(height: 20),
-                    _buildField(_passwordController, 'كلمة المرور', Icons.lock_outline, isPass: true),
-                    const SizedBox(height: 30),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _login,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kPrimaryColor,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 400),
+                padding: const EdgeInsets.all(30.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20)],
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      const Icon(Icons.account_balance_rounded, size: 70, color: kPrimaryColor),
+                      const SizedBox(height: 10),
+                      const Text('أكسب ERP',
+                          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: kSecondaryColor, fontFamily: 'Cairo')),
+                      const Text('نظام المبيعات والخدمات اللوجستية',
+                          style: TextStyle(fontSize: 14, color: Colors.grey, fontFamily: 'Cairo')),
+                      const SizedBox(height: 30),
+                      _buildField(_phoneController, 'رقم الهاتف / المستخدم', Icons.person_outline),
+                      const SizedBox(height: 20),
+                      _buildField(_passwordController, 'كلمة المرور', Icons.lock_outline, isPass: true),
+                      const SizedBox(height: 30),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kPrimaryColor,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Text('دخول النظام', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                         ),
-                        child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('دخول النظام', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
-                    ),
-                    if (_errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 15),
-                        child: Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500)),
-                      ),
-                  ],
+                      if (_errorMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 15),
+                          child: Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500, fontFamily: 'Cairo')),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
