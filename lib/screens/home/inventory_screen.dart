@@ -30,7 +30,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     if (userDataString == null) {
       setState(() {
         _isLoading = false;
-        _errorMessage = "يرجى إعادة تسجيل الدخول";
+        _errorMessage = "انتهت الجلسة، يرجى إعادة تسجيل الدخول لتحديث العهدة";
       });
       return;
     }
@@ -38,21 +38,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final Map<String, dynamic> repData = jsonDecode(userDataString);
     final String repCode = repData['rep_code']?.toString() ?? "";
     
-    // استخراج التوكن لحل مشكلة الـ 403
-    final String? token = repData['token']; 
+    // محاولة جلب التوكن بأكثر من مفتاح لضمان التوافق مع السيرفر
+    final String? token = repData['token'] ?? repData['access_token'] ?? repData['key']; 
 
     if (repCode.isEmpty) {
       setState(() {
         _isLoading = false;
-        _errorMessage = "كود المندوب غير موجود في الذاكرة";
+        _errorMessage = "كود المندوب غير معرف، يرجى مراجعة الإدارة";
       });
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = "";
+    });
 
     try {
-      // الرابط المطابق للـ urls.py في السيرفر
       final url = Uri.parse('https://aksab.pythonanywhere.com/logistics/my-inventory/?rep_code=$repCode');
       
       final response = await http.get(
@@ -60,45 +62,40 @@ class _InventoryScreenState extends State<InventoryScreen> {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          // تأكد من المسافة بعد كلمة Token
           if (token != null) 'Authorization': 'Token $token', 
         },
-      );
+      ).timeout(const Duration(seconds: 10));
 
-      // Console UI Logging للـ Debugging
-      debugPrint("📡 Requesting Inventory: $url");
-      debugPrint("📥 Status Code: ${response.statusCode}");
+      debugPrint("📥 Inventory Status: ${response.statusCode}");
 
       if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes)); // دعم اللغة العربية
         setState(() {
-          _inventoryItems = jsonDecode(response.body);
+          _inventoryItems = data;
           _isLoading = false;
-          _errorMessage = "";
         });
       } else if (response.statusCode == 403) {
         setState(() {
           _isLoading = false;
-          _errorMessage = "خطأ 403: ليس لديك صلاحية الوصول. تأكد من الحساب.";
+          _errorMessage = "خطأ 403: الحساب غير مصرح له بالوصول للعهدة.\nتأكد من تفعيل صلاحيات اللوجستيات لحسابك.";
+        });
+      } else if (response.statusCode == 401) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "جلسة العمل غير صالحة، يرجى تسجيل الخروج والدخول مرة أخرى.";
         });
       } else {
         setState(() {
           _isLoading = false;
-          _errorMessage = "خطأ من السيرفر (${response.statusCode}):\n${_parseError(response.body)}";
+          _errorMessage = "السيرفر غير مستجيب حالياً (${response.statusCode})";
         });
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = "خطأ في الاتصال بالسيرفر: $e";
+        _errorMessage = "تعذر الاتصال بالشبكة، تأكد من الإنترنت وحاول مرة أخرى.";
       });
-    }
-  }
-
-  String _parseError(String body) {
-    try {
-      final data = jsonDecode(body);
-      return data.toString();
-    } catch (_) {
-      return body;
     }
   }
 
@@ -109,12 +106,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
         appBar: AppBar(
-          title: const Text('جرد العهدة الحالية',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('جرد العهدة (الأمانات)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
           centerTitle: true,
           backgroundColor: Colors.white,
           foregroundColor: kSecondaryColor,
-          elevation: 0,
+          elevation: 0.5,
         ),
         body: _isLoading
             ? Center(child: CircularProgressIndicator(color: kPrimaryColor))
@@ -122,76 +119,89 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 onRefresh: _fetchInventory,
                 color: kPrimaryColor,
                 child: _errorMessage.isNotEmpty
-                    ? SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        child: Container(
-                          height: MediaQuery.of(context).size.height * 0.7,
-                          // --- تم التصحيح هنا من Center إلى Alignment.center ---
-                          alignment: Alignment.center, 
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.error_outline, color: Colors.red, size: 60),
-                                const SizedBox(height: 15),
-                                Text(_errorMessage,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(color: Colors.red, fontSize: 16)),
-                                const SizedBox(height: 25),
-                                ElevatedButton.icon(
-                                  onPressed: _fetchInventory,
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text("محاولة أخرى"),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: kSecondaryColor,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                                  ),
-                                )
-                              ],
-                            ),
-                          ),
-                        ),
-                      )
+                    ? _buildErrorUI()
                     : _inventoryItems.isEmpty
-                        ? const Center(child: Text("لا توجد أمانات (بضاعة) في عهدتك حالياً"))
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(15),
-                            itemCount: _inventoryItems.length,
-                            itemBuilder: (context, index) {
-                              final item = _inventoryItems[index];
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(15)),
-                                elevation: 1,
-                                child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: kPrimaryColor.withAlpha(25),
-                                    child: Icon(Icons.inventory_2, color: kPrimaryColor),
-                                  ),
-                                  title: Text(item['product_name'] ?? 'منتج غير معروف',
-                                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  subtitle: Text("كود: ${item['product_code'] ?? 'N/A'}"),
-                                  trailing: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text("${item['quantity'] ?? 0}",
-                                          style: TextStyle(
-                                              color: kPrimaryColor,
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold)),
-                                      const Text("قطعة", style: TextStyle(fontSize: 10)),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                        ? _buildEmptyUI()
+                        : _buildInventoryList(),
               ),
       ),
     );
   }
-}
 
+  Widget _buildErrorUI() {
+    return ListView( // ListView ليدعم RefreshIndicator
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+        const Icon(Icons.lock_person_rounded, color: Colors.orange, size: 80),
+        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 30),
+          child: Text(_errorMessage,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.black87, fontSize: 16, fontFamily: 'Cairo')),
+        ),
+        const SizedBox(height: 30),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 80),
+          child: ElevatedButton(
+            onPressed: _fetchInventory,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kSecondaryColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            child: const Text("تحديث البيانات", style: TextStyle(color: Colors.white)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyUI() {
+    return ListView(
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+        const Center(
+          child: Text("لا توجد أمانات في عهدتك حالياً",
+              style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo')),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInventoryList() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(15),
+      itemCount: _inventoryItems.length,
+      itemBuilder: (context, index) {
+        final item = _inventoryItems[index];
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(12),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: kPrimaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.inventory_2_outlined, color: kPrimaryColor),
+            ),
+            title: Text(item['product_name'] ?? 'صنف غير مسمى',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text("كود الصنف: ${item['product_code'] ?? '---'}"),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text("${item['quantity'] ?? 0}",
+                    style: TextStyle(color: kPrimaryColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text("قطعة", style: TextStyle(fontSize: 11)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
