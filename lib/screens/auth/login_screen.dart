@@ -21,7 +21,9 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       FirebaseMessaging messaging = FirebaseMessaging.instance;
       NotificationSettings settings = await messaging.requestPermission(
-        alert: true, badge: true, sound: true,
+        alert: true,
+        badge: true,
+        sound: true,
       );
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         return await messaging.getToken();
@@ -46,13 +48,12 @@ class _LoginScreenState extends State<LoginScreen> {
       String? deviceToken = await _getFCMToken();
 
       final response = await http.post(
-  Uri.parse('https://aksab.pythonanywhere.com/logistics/login/'), // ✅ هذا المسار الصحيح
-
+        Uri.parse('https://aksab.pythonanywhere.com/logistics/login/'), // ✅ هذا المسار الصحيح
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'phone': _phoneController.text,
           'password': _passwordController.text,
-          'fcm_token': deviceToken, 
+          'fcm_token': deviceToken,
         }),
       );
 
@@ -61,20 +62,32 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (data['status'] == 'success') {
           final prefs = await SharedPreferences.getInstance();
-          
-          // حفظ البيانات الأساسية
-          await prefs.setString('token', data['token']?.toString() ?? '');
-          await prefs.setString('role', data['role']?.toString() ?? '');
-          await prefs.setString('fullname', data['fullname']?.toString() ?? 'مندوب أكسب');
-          await prefs.setString('user_id', data['user_id']?.toString() ?? '');
 
-          // حفظ بيانات العهدة الصريحة من حقل 'data' في السيرفر
+          // ✅ تجهيز كائن البيانات الموحد (userData) ليتمكن RepHomeScreen من قراءته
+          Map<String, dynamic> userData = {
+            'token': data['token']?.toString() ?? '',
+            'role': data['role']?.toString() ?? '',
+            'fullname': data['fullname']?.toString() ?? 'مندوب أكسب',
+            'user_id': data['user_id']?.toString() ?? '',
+            'insurance_points': (data['data']?['insurance_points'] ?? '0.00').toString(),
+            'rep_code': (data['data']?['rep_code'] ?? '').toString(),
+            'phone': (data['data']?['phone'] ?? '').toString(),
+          };
+
+          // حفظ البيانات بصيغة JSON كما تتطلبها صفحة المندوب
+          await prefs.setString('userData', jsonEncode(userData));
+          
+          // حفظ القيم الفردية للاحتياط وسهولة الاستخدام في الـ Routes
+          await prefs.setString('token', userData['token']);
+          await prefs.setString('role', userData['role']);
+          await prefs.setString('fullname', userData['fullname']);
+          await prefs.setString('user_id', userData['user_id']);
+          
           if (data['data'] != null) {
-            var repData = data['data'];
-            // تأمين نقاط التأمين (تأمين عهدة الطلب)
-            await prefs.setString('insurance_points', (repData['insurance_points'] ?? '0.00').toString());
-            await prefs.setString('rep_code', (repData['rep_code'] ?? '').toString());
-            await prefs.setString('phone', (repData['phone'] ?? '').toString());
+             var repData = data['data'];
+             await prefs.setString('insurance_points', (repData['insurance_points'] ?? '0.00').toString());
+             await prefs.setString('rep_code', (repData['rep_code'] ?? '').toString());
+             await prefs.setString('phone', (repData['phone'] ?? '').toString());
           }
 
           if (mounted) {
@@ -131,7 +144,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
                 const SizedBox(height: 50),
-                
                 TextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
@@ -152,7 +164,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 40),
-                
                 SizedBox(
                   width: double.infinity,
                   height: 55,
@@ -163,12 +174,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                       elevation: 4,
                     ),
-                    child: _isLoading 
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          "تأكيد الدخول للمنظومة",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            "تأكيد الدخول للمنظومة",
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 25),
