@@ -17,12 +17,13 @@ class StockTransfer {
 
   factory StockTransfer.fromJson(Map<String, dynamic> json) {
     return StockTransfer(
-      id: json['id'],
-      transferNo: json['transfer_no'],
-      productName: json['product_name'] ?? json['product'].toString(), // حسب الـ Serializer
-      quantity: json['quantity'],
-      status: json['status'],
-      createdAt: json['created_at'],
+      id: json['id'] ?? 0,
+      transferNo: json['transfer_no'] ?? '',
+      // تأكدنا إن الاسم يقرأ من الحقل الصحيح في الـ API
+      productName: json['product_name'] ?? 'صنف غير معرف', 
+      quantity: json['quantity'] ?? 0,
+      status: json['status'] ?? '',
+      createdAt: json['created_at'] ?? '',
     );
   }
 }
