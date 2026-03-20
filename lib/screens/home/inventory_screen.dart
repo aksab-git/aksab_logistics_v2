@@ -53,7 +53,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     });
 
     try {
-      // الرابط يرسل الكود لفلترة الأصناف المرتبطة بمخزن هذا المندوب
       final url = Uri.parse('https://aksab.pythonanywhere.com/logistics/my-inventory/?rep_code=$repCode');
       
       final response = await http.get(
@@ -163,7 +162,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
       itemBuilder: (context, index) {
         final item = _inventoryItems[index];
         
-        // ملاحظة: الحقول تم تعديلها لتطابق InventoryItem في Django
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -177,18 +175,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
               ),
               child: Icon(Icons.local_shipping_outlined, color: kPrimaryColor),
             ),
-            // نستخدم حقل product_name القادم من السيرفر (أو product__name في الـ Query)
             title: Text(item['product_name'] ?? 'منتج غير معرف',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             subtitle: Padding(
-              padding: const EdgeInsets.top(4),
+              // تم التصحيح هنا من EdgeInsets.top لـ EdgeInsets.only
+              padding: const EdgeInsets.only(top: 4), 
               child: Text("كود الصنف: ${item['product_code'] ?? 'N/A'}"),
             ),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // تعديل الحقل ليكون stock_quantity بناءً على الـ Model
                 Text("${item['stock_quantity'] ?? 0}",
                     style: TextStyle(color: kPrimaryColor, fontSize: 20, fontWeight: FontWeight.bold)),
                 const Text("قطعة", style: TextStyle(fontSize: 10, color: Colors.grey)),
