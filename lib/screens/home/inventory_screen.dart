@@ -15,10 +15,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
   bool _isLoading = true;
   String _errorMessage = "";
   
-  // ألوان الهوية اللوجستية
+  // ألوان الهوية اللوجستية (تم تصحيح السطر المسبب للخطأ)
   final Color kPrimaryColor = const Color(0xFFB21F2D);
   final Color kSecondaryColor = const Color(0xFF1A2C3D);
-  final Color kAccentColor = const Color(0 style: TextStyle(color: Colors.blueGrey));
+  final Color kAccentColor = const Color(0xFF2E7D32); // لون أخضر لوجستي للنجاح/الكميات
 
   @override
   void initState() {
@@ -92,11 +92,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
           foregroundColor: kSecondaryColor,
           elevation: 0,
         ),
-        // الزر العائم المؤقت للانتقال للخطوة القادمة
         floatingActionButton: _inventoryItems.isNotEmpty 
           ? FloatingActionButton.extended(
               onPressed: () {
-                // سنقوم بإنشاء هذه الصفحة لاحقاً (تأكيد الاستلام)
+                // سيتم ربطها بصفحة تأكيد الاستلام لاحقاً
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text("جاري تحضير صفحة تأكيد استلام العهدة..."))
                 );
@@ -129,7 +128,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _buildSummaryHeader() {
-    int totalQty = _inventoryItems.fold(0, (sum, item) => sum + (item['stock_quantity'] as int));
+    int totalQty = _inventoryItems.fold(0, (sum, item) => sum + (int.parse(item['stock_quantity'].toString())));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
       decoration: BoxDecoration(
@@ -179,7 +178,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                // صورة افتراضية أو باركود
                 Container(
                   width: 60,
                   height: 60,
@@ -211,7 +209,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            "وحدة: قطعة", // يمكن جلبها من الموديل لاحقاً
+                            "وحدة: قطعة", 
                             style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontFamily: 'Cairo'),
                           ),
                         ],
@@ -219,7 +217,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ],
                   ),
                 ),
-                // الكمية
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
