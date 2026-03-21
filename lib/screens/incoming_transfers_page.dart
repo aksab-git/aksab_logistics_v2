@@ -28,7 +28,7 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
     });
   }
 
-  // ✅ نافذة كشف الأعطال تظهر فوق التطبيق
+  // ✅ نافذة كشف الأعطال تظهر فوق التطبيق (Debug Panel)
   void _showDebugPanel() {
     showModalBottomSheet(
       context: context,
@@ -44,15 +44,17 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("سجل البيانات الخام (Debug)", style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                  const Text("سجل البيانات الخام (Debug)", 
+                    style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                   IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
                 ],
               ),
               const Divider(color: Colors.white24),
-              const Text("الطلب المرسل للمندوب:", style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const Text("الطلب المرسل للمندوب:", style: TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'Cairo')),
               Text(widget.repCode, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               const SizedBox(height: 15),
-              const Text("رد السيرفر الحالي:", style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const Text("رد السيرفر الحالي:", style: TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'Cairo')),
+              const SizedBox(height: 5),
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(8)),
@@ -80,12 +82,12 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
           backgroundColor: const Color(0xFF1A237E), 
           foregroundColor: Colors.white,
           actions: [
-            // ✅ زرار الكشاف
+            // ✅ زرار الكشاف التقني
             IconButton(icon: const Icon(Icons.bug_report, color: Colors.orangeAccent), onPressed: _showDebugPanel),
             IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshData)
           ],
         ),
-        // ✅ زرار عائم إضافي عشان لو الشاشة فاضية تعرف تدوس عليه
+        // ✅ زرار عائم للوصول السريع للـ Debug
         floatingActionButton: FloatingActionButton(
           backgroundColor: Colors.orange[800],
           onPressed: _showDebugPanel,
@@ -97,6 +99,8 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
+            
+            // ✅ تم تصحيح هذا الجزء لإزالة const التي تسببت في فشل البناء
             if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
               return Center(
                 child: Column(
@@ -104,19 +108,28 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
                   children: [
                     Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[400]),
                     const SizedBox(height: 10),
-                    const Text("لا توجد عهد معلقة حالياً", 
-                      style: TextStyle(fontFamily: 'Cairo', color: Colors.grey[600], fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
+                    Text(
+                      "لا توجد عهد معلقة حالياً", 
+                      style: TextStyle(
+                        fontFamily: 'Cairo', 
+                        color: Colors.grey[600], 
+                        fontWeight: FontWeight.bold
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     ElevatedButton.icon(
                       onPressed: _showDebugPanel, 
                       icon: const Icon(Icons.terminal),
-                      label: const Text("فحص الرد التقني", style: TextStyle(fontFamily: 'Cairo')),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[800]),
+                      label: const Text("فحص الرد التقني", style: TextStyle(fontFamily: 'Cairo', color: Colors.white)),
                     ),
-                    if (snapshot.hasError) TextButton(onPressed: _refreshData, child: const Text("إعادة المحاولة"))
+                    if (snapshot.hasError) 
+                      TextButton(onPressed: _refreshData, child: const Text("إعادة المحاولة", style: TextStyle(fontFamily: 'Cairo')))
                   ],
                 ),
               );
             }
+
             return ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 10),
               itemCount: snapshot.data!.length,
@@ -137,16 +150,22 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
         initiallyExpanded: true,
         title: Text("إذن رقم: ${item.transferNo}",
             style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
-        subtitle: Text("الحالة: ${item.statusDisplay}", style: const TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Colors.orange)),
+        subtitle: Text("الحالة: ${item.statusDisplay}", 
+            style: const TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Colors.orange)),
         children: [
           const Divider(),
           ...item.items.map((product) => ListTile(
             leading: product.productImage != null 
-              ? Image.network(product.productImage!, width: 40, errorBuilder: (c,e,s) => const Icon(Icons.inventory_2))
+              ? Image.network(
+                  product.productImage!, 
+                  width: 40, 
+                  errorBuilder: (c, e, s) => const Icon(Icons.inventory_2, color: Colors.grey),
+                )
               : const Icon(Icons.inventory_2, color: Colors.grey),
-            title: Text(product.productName, style: const TextStyle(fontFamily: 'Cairo', fontSize: 14, fontWeight: FontWeight.bold)),
+            title: Text(product.productName, 
+                style: const TextStyle(fontFamily: 'Cairo', fontSize: 14, fontWeight: FontWeight.bold)),
             trailing: Text("${product.quantity} ${product.unitAtTransfer}", 
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontFamily: 'Cairo')),
           )),
           Padding(
             padding: const EdgeInsets.all(12.0),
@@ -172,20 +191,31 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
       builder: (context) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
-          title: const Text("تأكيد العهدة", style: TextStyle(fontFamily: 'Cairo')),
-          content: Text("هل أنت متأكد من استلام كافة الأصناف في الإذن رقم ${item.transferNo}؟ سيتم نقلها لعهدتك الشخصية فوراً."),
+          title: const Text("تأكيد العهدة", style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+          content: Text(
+            "هل أنت متأكد من استلام كافة الأصناف في الإذن رقم ${item.transferNo}؟ سيتم نقلها لعهدتك الشخصية فوراً.",
+            style: const TextStyle(fontFamily: 'Cairo'),
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("إلغاء", style: TextStyle(color: Colors.red))),
+            TextButton(
+              onPressed: () => Navigator.pop(context), 
+              child: const Text("إلغاء", style: TextStyle(color: Colors.red, fontFamily: 'Cairo'))
+            ),
             ElevatedButton(
               onPressed: () async {
                 Navigator.pop(context);
                 bool success = await _service.confirmReceipt(item.id, widget.userToken);
                 if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تأكيد العهدة بنجاح ✅")));
-                  _refreshData();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("تم تأكيد العهدة بنجاح ✅", style: TextStyle(fontFamily: 'Cairo')))
+                    );
+                    _refreshData();
+                  }
                 }
               },
-              child: const Text("تأكيد"),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32)),
+              child: const Text("تأكيد", style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
             ),
           ],
         ),
