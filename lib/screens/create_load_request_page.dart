@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/load_request_model.dart';
-import '../models/product_model.dart'; // تأكد من وجود موديل المنتج هنا
+import '../models/product_model.dart'; 
 import '../services/load_request_service.dart';
 import 'product_search_delegate.dart';
 
@@ -8,12 +8,12 @@ class CreateLoadRequestPage extends StatefulWidget {
   final String userToken;
   final int repId;
   final int myWarehouseId;
-  final List<Product> availableProducts; // قائمة المنتجات اللي هيبحث فيها
+  final List<Product> availableProducts;
 
   const CreateLoadRequestPage({
-    super.key, 
-    required this.userToken, 
-    required this.repId, 
+    super.key,
+    required this.userToken,
+    required this.repId,
     required this.myWarehouseId,
     required this.availableProducts,
   });
@@ -25,9 +25,9 @@ class CreateLoadRequestPage extends StatefulWidget {
 class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
   final List<LoadRequestItem> _selectedItems = [];
   final LoadRequestService _service = LoadRequestService();
+  final TextEditingController _notesController = TextEditingController();
   bool _isLoading = false;
 
-  // فتح شاشة البحث واختيار صنف
   void _pickProduct() async {
     final Product? selected = await showSearch<Product?>(
       context: context,
@@ -35,11 +35,10 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
     );
 
     if (selected != null) {
-      // التأكد إن الصنف مضافش قبل كدة
       bool exists = _selectedItems.any((item) => item.productId == selected.id);
       if (exists) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("هذا الصنف مضاف بالفعل في القائمة"))
+          const SnackBar(content: Text("هذا الصنف مضاف بالفعل في القائمة", style: TextStyle(fontFamily: 'Cairo')))
         );
         return;
       }
@@ -55,36 +54,36 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
     }
   }
 
-  // إرسال طلب التحميل للباكيند
   void _submitRequest() async {
     if (_selectedItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("برجاء إضافة أصناف أولاً"))
+        const SnackBar(content: Text("برجاء إضافة أصناف أولاً", style: TextStyle(fontFamily: 'Cairo')))
       );
       return;
     }
-    
+
     setState(() => _isLoading = true);
-    
+
     final requestHeader = LoadRequestHeader(
       repId: widget.repId,
-      sourceWarehouseId: 1, // افترضنا أن مخزن الإدارة هو ID 1
+      sourceWarehouseId: 1, // مخزن الإدارة الرئيسي
       myWarehouseId: widget.myWarehouseId,
       items: _selectedItems,
+      notes: _notesController.text,
     );
 
     bool success = await _service.sendLoadRequest(requestHeader, widget.userToken);
-    
+
     setState(() => _isLoading = false);
 
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("تم إرسال طلب التحميل بنجاح ✅"))
+        const SnackBar(content: Text("تم إرسال طلب التحميل بنجاح ✅ (بإنتظار الموافقة)", style: TextStyle(fontFamily: 'Cairo')))
       );
-      Navigator.pop(context); // العودة للشاشة السابقة
+      if (mounted) Navigator.pop(context);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("فشل في إرسال الطلب، حاول مرة أخرى ❌"))
+        const SnackBar(content: Text("فشل في إرسال الطلب، حاول مرة أخرى ❌", style: TextStyle(fontFamily: 'Cairo')))
       );
     }
   }
@@ -95,65 +94,106 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("إنشاء طلب تحميل (عُهدة)"),
+          title: const Text("إنشاء طلب تحميل (عُهدة)", style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 18)),
           backgroundColor: const Color(0xFF1A237E),
+          foregroundColor: Colors.white,
           actions: [
-            IconButton(icon: const Icon(Icons.search), onPressed: _pickProduct),
+            IconButton(icon: const Icon(Icons.add_shopping_cart), onPressed: _pickProduct),
           ],
         ),
         body: Column(
           children: [
-            // قائمة الأصناف المختارة
-            Expanded(
-              child: _selectedItems.isEmpty 
-                ? const Center(child: Text("اضغط على أيقونة البحث لإضافة أصناف للعهدة"))
-                : ListView.builder(
-                    itemCount: _selectedItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _selectedItems[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        child: ListTile(
-                          title: Text(item.productName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text("الوحدة: ${item.unit}"),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                                onPressed: () => setState(() => item.quantity > 1 ? item.quantity-- : null),
-                              ),
-                              Text("${item.quantity}", style: const TextStyle(fontSize: 16)),
-                              IconButton(
-                                icon: const Icon(Icons.add_circle_outline, color: Colors.green),
-                                onPressed: () => setState(() => item.quantity++),
-                              ),
-                              const SizedBox(width: 10),
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.grey),
-                                onPressed: () => setState(() => _selectedItems.removeAt(index)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+            // تلميح للمندوب
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              color: Colors.orange.shade50,
+              child: const Text(
+                "ملاحظة: سيظهر الطلب كـ (DRAFT) في لوحة الإدارة للمراجعة والموافقة.",
+                style: TextStyle(fontSize: 12, color: Colors.orange, fontFamily: 'Cairo', fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
             ),
             
-            // زر الإرسال النهائي
+            Expanded(
+              child: _selectedItems.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.post_add, size: 80, color: Colors.grey[300]),
+                          const SizedBox(height: 10),
+                          const Text("اضغط على الزر بالأعلى لإضافة أصناف", style: TextStyle(fontFamily: 'Cairo', color: Colors.grey)),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _selectedItems.length,
+                      itemBuilder: (context, index) {
+                        final item = _selectedItems[index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          child: ListTile(
+                            title: Text(item.productName, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                            subtitle: Text("الوحدة: ${item.unit}", style: const TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.remove_circle, color: Colors.redAccent),
+                                  onPressed: () => setState(() => item.quantity > 1 ? item.quantity-- : null),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)),
+                                  child: Text("${item.quantity}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add_circle, color: Colors.green),
+                                  onPressed: () => setState(() => item.quantity++),
+                                ),
+                                const VerticalDivider(),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_sweep, color: Colors.grey),
+                                  onPressed: () => setState(() => _selectedItems.removeAt(index)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+
+            // خانة الملاحظات
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                controller: _notesController,
+                decoration: const InputDecoration(
+                  hintText: "إضافة ملاحظات للإدارة (اختياري)...",
+                  hintStyle: TextStyle(fontSize: 13, fontFamily: 'Cairo'),
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+              ),
+            ),
+
+            // زر الإرسال
             Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+              padding: const EdgeInsets.all(15),
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2E7D32),
                   minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: _isLoading ? null : _submitRequest, 
-                child: _isLoading 
-                  ? const CircularProgressIndicator(color: Colors.white) 
-                  : const Text("تأكيد طلب العُهدة", style: TextStyle(color: Colors.white, fontSize: 18)),
+                onPressed: _isLoading ? null : _submitRequest,
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("إرسال طلب التحميل للمراجعة", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               ),
             )
           ],

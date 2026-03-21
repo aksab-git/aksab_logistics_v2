@@ -3,52 +3,26 @@ import 'package:http/http.dart' as http;
 import '../models/load_request_model.dart';
 
 class LoadRequestService {
-  final String baseUrl = "https://marginal-cathryn-aksab-e60772e8.koyeb.app/logistics/stock-transfers/";
+  final String baseUrl = "https://marginal-cathryn-aksab-e60772e8.koyeb.app/logistics";
 
-  // 1. إرسال طلب تحميل جديد (اللي كان موجود عندك)
   Future<bool> sendLoadRequest(LoadRequestHeader request, String token) async {
+    // الرابط الموحد لأذون التحويل
+    final url = Uri.parse('$baseUrl/my-transfers/');
+
     try {
       final response = await http.post(
-        Uri.parse(baseUrl),
+        url,
         headers: {
           'Authorization': 'Token $token',
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: jsonEncode(request.toJson()),
       );
-      return response.statusCode == 201;
-    } catch (e) {
-      print("Error sending load request: $e");
-      return false;
-    }
-  }
 
-  // 2. الجديد: تأكيد استلام صنف محدد (تأمين عهدة)
-  // بننادي على الأكشن confirm-item اللي ضفناه في الباكيند
-  Future<bool> confirmItemReceipt(int transferId, int itemId, String token) async {
-    final String url = "$baseUrl$transferId/confirm-item/";
-    
-    try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          'Authorization': 'Token $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'item_id': itemId, // الـ ID بتاع الصنف اللي المندوب علم عليه
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        print("Item confirmed successfully");
-        return true;
-      } else {
-        print("Failed to confirm item: ${response.body}");
-        return false;
-      }
+      // إذا نجح السيرفر في إنشاء الإذن (201 Created)
+      return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
-      print("Error confirming item: $e");
       return false;
     }
   }
