@@ -22,6 +22,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
   String _errorMessage = "";
   int _pendingTransfersCount = 0;
 
+  // متغيرات لتخزين آخر استجابة للفحص (Debugging)
+  String _lastRawResponse = "";
+  int _lastStatusCode = 0;
+
   // الهوية اللونية
   final Color kPrimaryColor = const Color(0xFFB21F2D);
   final Color kSecondaryColor = const Color(0xFF1A2C3D);
@@ -35,13 +39,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Future<void> _refreshAll() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = "";
+    });
     await _fetchInventory();
     await _checkPendingTransfers();
     if (mounted) setState(() => _isLoading = false);
   }
 
-  // 🛠️ جلب بيانات عهدة السيارة (التصحيح هنا)
+  // 🛠️ جلب بيانات عهدة السيارة مع نظام فحص الأخطاء
   Future<void> _fetchInventory() async {
     final prefs = await SharedPreferences.getInstance();
     final userDataString = prefs.getString('userData');
@@ -53,21 +60,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     final Map<String, dynamic> userData = jsonDecode(userDataString);
     final String repCode = userData['rep_code']?.toString() ?? "";
-    // تأكدنا من استخدام 'token' كاسم موحد
     final String? token = userData['token']?.toString();
 
     try {
-      // ✅ التصحيح: إضافة الشرطة المائلة قبل علامة الاستفهام ليتوافق مع Django URLs
       final String urlPath = 'https://marginal-cathryn-aksab-e60772e8.koyeb.app/logistics/my-inventory/?rep_code=$repCode';
-      
+
       final response = await http.get(
-        Uri.parse(urlPath), 
+        Uri.parse(urlPath),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           if (token != null && token.isNotEmpty) 'Authorization': 'Token $token',
         },
       ).timeout(const Duration(seconds: 15));
+
+      // تخزين بيانات الاستجابة للفحص
+      _lastStatusCode = response.statusCode;
+      _lastRawResponse = response.body;
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -85,12 +94,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _errorMessage = "حدث خطأ في الاتصال بالخادم");
+        _lastRawResponse = e.toString();
       }
       debugPrint("❌ Inventory Error: $e");
     }
   }
 
-  // 🛠️ فحص العهد المعلقة (تأكيد استلام الأمانات)
+  // 🛠️ فحص العهد المعلقة
   Future<void> _checkPendingTransfers() async {
     final prefs = await SharedPreferences.getInstance();
     final userDataString = prefs.getString('userData');
@@ -101,7 +111,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final String? token = userData['token']?.toString();
 
     try {
-      // ✅ نفس التصحيح هنا أيضاً
       final url = Uri.parse('https://marginal-cathryn-aksab-e60772e8.koyeb.app/logistics/my-transfers/?rep_code=$repCode');
       final response = await http.get(url, headers: {
         if (token != null) 'Authorization': 'Token $token',
@@ -115,6 +124,37 @@ class _InventoryScreenState extends State<InventoryScreen> {
         }
       }
     } catch (_) {}
+  }
+
+  // دالة إظهار نافذة الفحص (Debug Dialog)
+  void _showDebugInfo() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("فحص استجابة السيرفر", style: TextStyle(fontFamily: 'Cairo')),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("Status Code: $_lastStatusCode", style: const TextStyle(fontWeight: FontWeight.bold)),
+              const Divider(),
+              const Text("Response Body:", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                color: Colors.grey.shade200,
+                child: Text(_lastRawResponse.isEmpty ? "لا توجد بيانات" : _lastRawResponse,
+                    style: const TextStyle(fontSize: 10, fontFamily: 'monospace')),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("إغلاق")),
+        ],
+      ),
+    );
   }
 
   void _openCreateLoadRequest() async {
@@ -142,7 +182,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           builder: (context) => CreateLoadRequestPage(
             userToken: userData['token'],
             repId: int.tryParse(userData['user_id'].toString()) ?? 0,
-            myWarehouseId: 1, // يمكن تخصيصه لاحقاً
+            myWarehouseId: 1,
             availableProducts: allProducts,
           ),
         ),
@@ -171,6 +211,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
           backgroundColor: Colors.white,
           foregroundColor: kSecondaryColor,
           elevation: 0,
+          actions: [
+            // زر الفحص (Debugger)
+            IconButton(
+              icon: const Icon(Icons.bug_report, color: Colors.orange),
+              onPressed: _showDebugInfo,
+            ),
+          ],
         ),
         floatingActionButton: Column(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -221,7 +268,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   : RefreshIndicator(
                       onRefresh: _refreshAll,
                       color: kPrimaryColor,
-                      child: _errorMessage.isNotEmpty ? _buildErrorUI() : _inventoryItems.isEmpty ? _buildEmptyUI() : _buildInventoryList(),
+                      child: _errorMessage.isNotEmpty 
+                          ? _buildErrorUI() 
+                          : _inventoryItems.isEmpty 
+                              ? _buildEmptyUI() 
+                              : _buildInventoryList(),
                     ),
             ),
           ],
@@ -246,7 +297,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _summaryBox(String label, String value, IconData icon) {
-    return Row(children: [Icon(icon, size: 20, color: kPrimaryColor), const SizedBox(width: 8), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontFamily: 'Cairo')), Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: kSecondaryColor))])]);
+    return Row(children: [
+      Icon(icon, size: 20, color: kPrimaryColor),
+      const SizedBox(width: 8),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontFamily: 'Cairo')),
+        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: kSecondaryColor))
+      ])
+    ]);
   }
 
   Widget _buildInventoryList() {
