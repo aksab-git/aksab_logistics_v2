@@ -28,6 +28,46 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
     });
   }
 
+  // ✅ نافذة كشف الأعطال تظهر فوق التطبيق
+  void _showDebugPanel() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        padding: const EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("سجل البيانات الخام (Debug)", style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                  IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                ],
+              ),
+              const Divider(color: Colors.white24),
+              const Text("الطلب المرسل للمندوب:", style: TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(widget.repCode, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 15),
+              const Text("رد السيرفر الحالي:", style: TextStyle(color: Colors.grey, fontSize: 12)),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(8)),
+                child: SelectableText(
+                  TransferService.lastRawResponse,
+                  style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace', fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -40,8 +80,16 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
           backgroundColor: const Color(0xFF1A237E), 
           foregroundColor: Colors.white,
           actions: [
+            // ✅ زرار الكشاف
+            IconButton(icon: const Icon(Icons.bug_report, color: Colors.orangeAccent), onPressed: _showDebugPanel),
             IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshData)
           ],
+        ),
+        // ✅ زرار عائم إضافي عشان لو الشاشة فاضية تعرف تدوس عليه
+        floatingActionButton: FloatingActionButton(
+          backgroundColor: Colors.orange[800],
+          onPressed: _showDebugPanel,
+          child: const Icon(Icons.code, color: Colors.white),
         ),
         body: FutureBuilder<List<StockTransfer>>(
           future: _transfers,
@@ -56,8 +104,14 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
                   children: [
                     Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[400]),
                     const SizedBox(height: 10),
-                    Text("لا توجد عهد معلقة حالياً", 
+                    const Text("لا توجد عهد معلقة حالياً", 
                       style: TextStyle(fontFamily: 'Cairo', color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    ElevatedButton.icon(
+                      onPressed: _showDebugPanel, 
+                      icon: const Icon(Icons.terminal),
+                      label: const Text("فحص الرد التقني", style: TextStyle(fontFamily: 'Cairo')),
+                    ),
                     if (snapshot.hasError) TextButton(onPressed: _refreshData, child: const Text("إعادة المحاولة"))
                   ],
                 ),
@@ -79,7 +133,7 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       elevation: 4,
-      child: ExpansionTile( // استخدام ExpansionTile لعرض الأصناف داخل الإذن
+      child: ExpansionTile(
         initiallyExpanded: true,
         title: Text("إذن رقم: ${item.transferNo}",
             style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
