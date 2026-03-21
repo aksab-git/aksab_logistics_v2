@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../incoming_transfers_page.dart';
 import '../create_load_request_page.dart';
 import '../../services/product_service.dart';
-import '../../models/product.dart';
+import '../../models/product_model.dart';
 
 
 class InventoryScreen extends StatefulWidget {

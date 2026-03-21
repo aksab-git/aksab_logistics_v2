@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/product.dart'; // ده الموديل اللي هنعمله في الخطوة الجاية
+import '../models/product_model.dart'; // ده الموديل اللي هنعمله في الخطوة الجاية
 
 class ProductService {
   // ده رابط الـ API اللي بيجيب كل المنتجات (تأكد إنه مطابق للباكيند)
