@@ -24,7 +24,6 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
 
   void _refreshData() {
     setState(() {
-      // ✅ نمرر الـ repCode والـ Token للخدمة
       _transfers = _service.getMyIncomingTransfers(widget.userToken, widget.repCode);
     });
   }
@@ -41,10 +40,7 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
           backgroundColor: const Color(0xFF1A237E), 
           foregroundColor: Colors.white,
           actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _refreshData,
-            )
+            IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshData)
           ],
         ),
         body: FutureBuilder<List<StockTransfer>>(
@@ -53,42 +49,24 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
-            if (snapshot.hasError) {
+            if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.cloud_off, size: 60, color: Colors.redAccent),
+                    Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[400]),
                     const SizedBox(height: 10),
-                    Text("حدث خطأ في الاتصال بالخادم", style: TextStyle(fontFamily: 'Cairo', color: Colors.red[700])),
-                    TextButton(onPressed: _refreshData, child: const Text("إعادة المحاولة"))
+                    Text("لا توجد عهد معلقة حالياً", 
+                      style: TextStyle(fontFamily: 'Cairo', color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                    if (snapshot.hasError) TextButton(onPressed: _refreshData, child: const Text("إعادة المحاولة"))
                   ],
                 ),
               );
             }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.inbox_outlined, size: 80, color: Colors.grey),
-                    SizedBox(height: 10),
-                    Text("لا توجد عهد معلقة في الطريق حالياً", 
-                      style: TextStyle(fontFamily: 'Cairo', color: Colors.grey, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              );
-            }
-            return RefreshIndicator(
-              onRefresh: () async => _refreshData(),
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                itemCount: snapshot.data!.length,
-                itemBuilder: (context, index) {
-                  final item = snapshot.data![index];
-                  return _buildTransferCard(item);
-                },
-              ),
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              itemCount: snapshot.data!.length,
+              itemBuilder: (context, index) => _buildTransferCard(snapshot.data![index]),
             );
           },
         ),
@@ -100,52 +78,36 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text("إذن رقم: ${item.transferNo}",
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[700], fontFamily: 'Cairo')),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: Colors.orange.shade800,
-                      borderRadius: BorderRadius.circular(20)),
-                  child: const Text("في عهدة الطريق",
-                      style: TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'Cairo')),
-                ),
-              ],
-            ),
-            const Divider(height: 25),
-            Text(item.productName,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Text("الكمية المخصصة: ", style: TextStyle(fontFamily: 'Cairo', color: Colors.grey)),
-                Text("${item.quantity}",
-                    style: const TextStyle(fontSize: 20, color: Color(0xFF1A237E), fontWeight: FontWeight.w900)),
-                const Text(" قطعة", style: TextStyle(fontFamily: 'Cairo', fontSize: 14)),
-              ],
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
+      elevation: 4,
+      child: ExpansionTile( // استخدام ExpansionTile لعرض الأصناف داخل الإذن
+        initiallyExpanded: true,
+        title: Text("إذن رقم: ${item.transferNo}",
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
+        subtitle: Text("الحالة: ${item.statusDisplay}", style: const TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Colors.orange)),
+        children: [
+          const Divider(),
+          ...item.items.map((product) => ListTile(
+            leading: product.productImage != null 
+              ? Image.network(product.productImage!, width: 40, errorBuilder: (c,e,s) => const Icon(Icons.inventory_2))
+              : const Icon(Icons.inventory_2, color: Colors.grey),
+            title: Text(product.productName, style: const TextStyle(fontFamily: 'Cairo', fontSize: 14, fontWeight: FontWeight.bold)),
+            trailing: Text("${product.quantity} ${product.unitAtTransfer}", 
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+          )),
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: ElevatedButton(
               onPressed: () => _confirmReceiptDialog(item),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2E7D32),
-                minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                minimumSize: const Size(double.infinity, 45),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text("تأكيد استلام الأمانات (العهد)",
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+              child: const Text("تأكيد استلام كامل الإذن",
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -153,52 +115,23 @@ class _IncomingTransfersPageState extends State<IncomingTransfersPage> {
   void _confirmReceiptDialog(StockTransfer item) {
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (context) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.security, color: Colors.orange),
-              SizedBox(width: 10),
-              Text("تأكيد العهدة", style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: const Text(
-            "تأكيد العهدة: أنت تؤكد الآن استلام الشحنة في عهدتك الشخصية. سيتم تخصيص (نقاط أمان) من حسابك تعادل قيمة الشحنة لضمان النقل الآمن. لا يمكن التراجع بعد التأكيد.",
-            style: TextStyle(fontFamily: 'Cairo'),
-          ),
+          title: const Text("تأكيد العهدة", style: TextStyle(fontFamily: 'Cairo')),
+          content: Text("هل أنت متأكد من استلام كافة الأصناف في الإذن رقم ${item.transferNo}؟ سيتم نقلها لعهدتك الشخصية فوراً."),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("إلغاء", style: TextStyle(fontFamily: 'Cairo', color: Colors.red))),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("إلغاء", style: TextStyle(color: Colors.red))),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32)),
               onPressed: () async {
                 Navigator.pop(context);
-                // إظهار Loading بسيط
-                showDialog(context: context, builder: (c) => const Center(child: CircularProgressIndicator()));
-                
                 bool success = await _service.confirmReceipt(item.id, widget.userToken);
-                
-                if (mounted) Navigator.pop(context); // إخفاء الـ Loading
-
                 if (success) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("تم استلام العهدة بنجاح ✅", style: TextStyle(fontFamily: 'Cairo')))
-                    );
-                    _refreshData();
-                  }
-                } else {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("فشل في تأكيد الاستلام، حاول مرة أخرى", style: TextStyle(fontFamily: 'Cairo')))
-                    );
-                  }
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تأكيد العهدة بنجاح ✅")));
+                  _refreshData();
                 }
               },
-              child: const Text("تأكيد الاستلام", style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
+              child: const Text("تأكيد"),
             ),
           ],
         ),
