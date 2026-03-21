@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/load_request_model.dart';
 
 class LoadRequestService {
-  final String baseUrl = "https://aksab.pythonanywhere.com/logistics/stock-transfers/";
+  final String baseUrl = "https://marginal-cathryn-aksab-e60772e8.koyeb.app/logistics/stock-transfers/";
 
   // 1. إرسال طلب تحميل جديد (اللي كان موجود عندك)
   Future<bool> sendLoadRequest(LoadRequestHeader request, String token) async {

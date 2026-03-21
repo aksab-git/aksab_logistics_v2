@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import '../models/transfer_model.dart';
 
 class TransferService {
-  final String baseUrl = "https://aksab.pythonanywhere.com/logistics";
+  final String baseUrl = "https://marginal-cathryn-aksab-e60772e8.koyeb.app/logistics";
 
   // جلب العهد الواردة (المعلقة)
   Future<List<StockTransfer>> getMyIncomingTransfers(String token, String repCode) async {

@@ -6,7 +6,7 @@ import '../models/logistics_models.dart';
 
 class LogisticsAPI {
   // 🔗 المسار الأساسي كما هو محدد في urls.py بالديجانجو
-  static const String baseUrl = 'https://aksab.pythonanywhere.com/logistics';
+  static const String baseUrl = 'https://marginal-cathryn-aksab-e60772e8.koyeb.app/logistics';
 
   static Future<List<InventoryItem>> fetchMyInventory() async {
     try {

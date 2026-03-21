@@ -112,7 +112,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       final String? token = repData?['token'];
 
       final response = await http.post(
-        Uri.parse('https://aksab.pythonanywhere.com/logistics/work-day/'),
+        Uri.parse('https://marginal-cathryn-aksab-e60772e8.koyeb.app/logistics/work-day/'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

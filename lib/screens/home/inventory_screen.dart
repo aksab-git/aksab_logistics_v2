@@ -61,7 +61,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final String? token = repData['token'];
 
     try {
-      final url = Uri.parse('https://aksab.pythonanywhere.com/logistics/my-inventory/?rep_code=$repCode');
+      final url = Uri.parse('https://marginal-cathryn-aksab-e60772e8.koyeb.app/logistics/my-inventory/?rep_code=$repCode');
       final response = await http.get(url, headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -97,7 +97,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final String? token = repData['token'];
 
     try {
-      final url = Uri.parse('https://aksab.pythonanywhere.com/logistics/my-transfers/?rep_code=$repCode');
+      final url = Uri.parse('https://marginal-cathryn-aksab-e60772e8.koyeb.app/logistics/my-transfers/?rep_code=$repCode');
       final response = await http.get(url, headers: {
         if (token != null) 'Authorization': 'Token $token',
       });
