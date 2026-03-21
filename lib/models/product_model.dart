@@ -13,14 +13,14 @@ class Product {
     required this.sellingPrice,
   });
 
-  // المابينج من جيسون الباكيند (Django) للفرونت إيند
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: json['id'],
-      name: json['name'],
-      sku: json['sku'] ?? '',
+      id: json['id'] ?? 0,
+      name: json['name'] ?? 'صنف غير معروف',
+      sku: json['sku'] ?? json['product_code'] ?? '', // مرونة في اسم الكود
       unit: json['unit'] ?? '',
-      sellingPrice: double.parse((json['selling_price'] ?? 0).toString()),
+      // دعم لأسماء الحقول المختلفة (price أو selling_price) لضمان عدم حدوث Error
+      sellingPrice: double.tryParse((json['selling_price'] ?? json['price'] ?? 0).toString()) ?? 0.0,
     );
   }
 }
