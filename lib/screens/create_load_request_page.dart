@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 import '../models/load_request_model.dart';
-import '../models/product_model.dart'; 
+import '../models/product_model.dart';
 import '../services/load_request_service.dart';
+import '../services/product_service.dart'; // ✅ أضفنا استيراد خدمة المنتجات
 import 'product_search_delegate.dart';
 
 class CreateLoadRequestPage extends StatefulWidget {
   final String userToken;
   final int repId;
   final int myWarehouseId;
-  final List<Product> availableProducts;
+  final List<Product>? availableProducts; // ✅ جعلناها اختيارية
 
   const CreateLoadRequestPage({
     super.key,
     required this.userToken,
     required this.repId,
     required this.myWarehouseId,
-    required this.availableProducts,
+    this.availableProducts,
   });
 
   @override
@@ -25,13 +26,58 @@ class CreateLoadRequestPage extends StatefulWidget {
 class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
   final List<LoadRequestItem> _selectedItems = [];
   final LoadRequestService _service = LoadRequestService();
+  final ProductService _productService = ProductService(); // ✅ تعريف الخدمة
   final TextEditingController _notesController = TextEditingController();
+  
+  List<Product> _allProducts = []; // القائمة المحلية التي سيتم البحث فيها
   bool _isLoading = false;
+  bool _isFetchingProducts = true; // ✅ متغير لحالة تحميل المنتجات
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ إذا كانت المنتجات ممررة جاهزة نستخدمها، وإلا نسحبها من السيرفر
+    if (widget.availableProducts != null && widget.availableProducts!.isNotEmpty) {
+      _allProducts = widget.availableProducts!;
+      _isFetchingProducts = false;
+    } else {
+      _loadProducts();
+    }
+  }
+
+  // ✅ دالة سحب المنتجات من السيرفر
+  Future<void> _loadProducts() async {
+    setState(() => _isFetchingProducts = true);
+    try {
+      final products = await _productService.getAllProducts(widget.userToken);
+      if (mounted) {
+        setState(() {
+          _allProducts = products;
+          _isFetchingProducts = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isFetchingProducts = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("فشل في تحديث قائمة المنتجات")),
+        );
+      }
+    }
+  }
 
   void _pickProduct() async {
+    // 🛡️ منع البحث لو القائمة لسه بتتحمل
+    if (_isFetchingProducts) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("يرجى الانتظار حتى اكتمال تحميل المنتجات..."))
+      );
+      return;
+    }
+
     final Product? selected = await showSearch<Product?>(
       context: context,
-      delegate: ProductSearchDelegate(widget.availableProducts),
+      delegate: ProductSearchDelegate(_allProducts), // استخدام القائمة المحلية
     );
 
     if (selected != null) {
@@ -66,7 +112,7 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
 
     final requestHeader = LoadRequestHeader(
       repId: widget.repId,
-      sourceWarehouseId: 1, // مخزن الإدارة الرئيسي
+      sourceWarehouseId: 1, 
       myWarehouseId: widget.myWarehouseId,
       items: _selectedItems,
       notes: _notesController.text,
@@ -98,12 +144,18 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
           backgroundColor: const Color(0xFF1A237E),
           foregroundColor: Colors.white,
           actions: [
-            IconButton(icon: const Icon(Icons.add_shopping_cart), onPressed: _pickProduct),
+            // ✅ إظهار علامة تحميل بسيطة في الـ AppBar لو لسه بيسحب المنتجات
+            if (_isFetchingProducts)
+              const Padding(
+                padding: EdgeInsets.all(15.0),
+                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+              )
+            else
+              IconButton(icon: const Icon(Icons.add_shopping_cart), onPressed: _pickProduct),
           ],
         ),
         body: Column(
           children: [
-            // تلميح للمندوب
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -114,7 +166,6 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
                 textAlign: TextAlign.center,
               ),
             ),
-            
             Expanded(
               child: _selectedItems.isEmpty
                   ? Center(
@@ -123,7 +174,10 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
                         children: [
                           Icon(Icons.post_add, size: 80, color: Colors.grey[300]),
                           const SizedBox(height: 10),
-                          const Text("اضغط على الزر بالأعلى لإضافة أصناف", style: TextStyle(fontFamily: 'Cairo', color: Colors.grey)),
+                          Text(
+                            _isFetchingProducts ? "جاري تحديث قائمة المنتجات..." : "اضغط على الزر بالأعلى لإضافة أصناف",
+                            style: const TextStyle(fontFamily: 'Cairo', color: Colors.grey),
+                          ),
                         ],
                       ),
                     )
@@ -166,8 +220,6 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
                       },
                     ),
             ),
-
-            // خانة الملاحظات
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 15),
               child: TextField(
@@ -180,8 +232,6 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
                 ),
               ),
             ),
-
-            // زر الإرسال
             Container(
               padding: const EdgeInsets.all(15),
               child: ElevatedButton(

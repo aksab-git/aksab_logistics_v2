@@ -39,6 +39,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Future<void> _refreshAll() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = "";
@@ -48,7 +49,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     if (mounted) setState(() => _isLoading = false);
   }
 
-  // 🛠️ جلب بيانات عهدة السيارة مع نظام فحص الأخطاء
+  // 🛠️ جلب بيانات عهدة السيارة
   Future<void> _fetchInventory() async {
     final prefs = await SharedPreferences.getInstance();
     final userDataString = prefs.getString('userData');
@@ -74,7 +75,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
         },
       ).timeout(const Duration(seconds: 15));
 
-      // تخزين بيانات الاستجابة للفحص
       _lastStatusCode = response.statusCode;
       _lastRawResponse = response.body;
 
@@ -96,7 +96,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
         setState(() => _errorMessage = "حدث خطأ في الاتصال بالخادم");
         _lastRawResponse = e.toString();
       }
-      debugPrint("❌ Inventory Error: $e");
     }
   }
 
@@ -126,7 +125,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     } catch (_) {}
   }
 
-  // دالة إظهار نافذة الفحص (Debug Dialog)
   void _showDebugInfo() {
     showDialog(
       context: context,
@@ -157,41 +155,28 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
+  // ✅ التعديل الجوهري: نفتح الصفحة فوراً والتحميل يتم بداخلها
   void _openCreateLoadRequest() async {
     final prefs = await SharedPreferences.getInstance();
     final String? userDataString = prefs.getString('userData');
     if (userDataString == null) return;
     final userData = jsonDecode(userDataString);
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    final productService = ProductService();
-    final allProducts = await productService.getAllProducts(userData['token']);
-
     if (!mounted) return;
-    Navigator.pop(context);
 
-    if (allProducts.isNotEmpty) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CreateLoadRequestPage(
-            userToken: userData['token'],
-            repId: int.tryParse(userData['user_id'].toString()) ?? 0,
-            myWarehouseId: 1,
-            availableProducts: allProducts,
-          ),
+    // ننتقل لصفحة الطلب مباشرة بدون انتظار
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateLoadRequestPage(
+          userToken: userData['token'],
+          repId: int.tryParse(userData['user_id'].toString()) ?? 0,
+          myWarehouseId: 1, 
+          // نمرر قائمة فارغة، والصفحة ستقوم بتحميل البيانات بداخلها
+          availableProducts: const [], 
         ),
-      ).then((_) => _refreshAll());
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("فشل في تحميل قائمة المنتجات")),
-      );
-    }
+      ),
+    ).then((_) => _refreshAll());
   }
 
   @override
@@ -212,7 +197,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
           foregroundColor: kSecondaryColor,
           elevation: 0,
           actions: [
-            // زر الفحص (Debugger)
             IconButton(
               icon: const Icon(Icons.bug_report, color: Colors.orange),
               onPressed: _showDebugInfo,
