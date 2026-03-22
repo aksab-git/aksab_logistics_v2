@@ -6,9 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 // استيراد الشاشات المطلوبة
 import 'add_customer_screen.dart';
 
-// ألوان الهوية الخاصة بك
+// --- الثوابت اللونية لهوية أكسب ERP (تمت إضافتها بالكامل لمنع أخطاء الـ Build) ---
 const Color kPrimaryColor = Color(0xFFB21F2D);
 const Color kSecondaryColor = Color(0xFF1A2C3D);
+const Color kSuccessColor = Color(0xFF2E7D32);
+const Color kErrorColor = Color(0xFFC62828);
 const Color kBgColor = Color(0xFFF8F9FA);
 
 class CustomersListScreen extends StatefulWidget {
@@ -184,7 +186,12 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
           const Icon(Icons.error_outline, color: kPrimaryColor, size: 60),
           const SizedBox(height: 10),
           Text(_error!, style: const TextStyle(fontSize: 16)),
-          TextButton(onPressed: _fetchCustomers, child: const Text("إعادة المحاولة")),
+          const SizedBox(height: 15),
+          ElevatedButton(
+            onPressed: _fetchCustomers,
+            style: ElevatedButton.styleFrom(backgroundColor: kSecondaryColor),
+            child: const Text("إعادة المحاولة", style: TextStyle(color: Colors.white)),
+          ),
         ],
       ),
     );
