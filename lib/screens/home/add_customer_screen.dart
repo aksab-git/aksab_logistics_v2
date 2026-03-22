@@ -4,9 +4,11 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// ألوان الهوية
+// --- الثوابت اللونية لهوية أكسب ERP ---
 const Color kPrimaryColor = Color(0xFFB21F2D);
 const Color kSecondaryColor = Color(0xFF1A2C3D);
+const Color kSuccessColor = Color(0xFF2E7D32); // تم الإضافة للإصلاح
+const Color kErrorColor = Color(0xFFC62828);   // تم الإضافة للإصلاح
 
 class AddCustomerScreen extends StatefulWidget {
   const AddCustomerScreen({super.key});
@@ -17,7 +19,7 @@ class AddCustomerScreen extends StatefulWidget {
 
 class _AddCustomerScreenState extends State<AddCustomerScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   // وحدات التحكم في النصوص
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _ownerController = TextEditingController();
@@ -60,7 +62,10 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userData = jsonDecode(prefs.getString('userData')!);
+      final userDataString = prefs.getString('userData');
+      if (userDataString == null) return;
+      
+      final userData = jsonDecode(userDataString);
       final String? token = userData['token'];
 
       final response = await http.post(
@@ -86,9 +91,9 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
         _showSnackBar("❌ فشل الحفظ: ${response.body}");
       }
     } catch (e) {
-      _showSnackBar("❌ خطأ في الاتصال: $e");
+      _showSnackBar("❌ خطأ في الاتصال بالسيرفر: $e");
     } finally {
-      setState(() => _isSaving = false);
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -97,11 +102,12 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FA),
         appBar: AppBar(
-          title: const Text("إضافة محل جديد"),
+          title: const Text("إضافة محل جديد", style: TextStyle(fontWeight: FontWeight.bold)),
           backgroundColor: Colors.white,
           foregroundColor: kSecondaryColor,
-          elevation: 0,
+          elevation: 0.5,
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -124,22 +130,23 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                 Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: _lat != null ? Colors.green : Colors.grey.shade300),
+                    border: Border.all(color: _lat != null ? kSuccessColor : Colors.grey.shade300),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 5)],
                   ),
                   child: Column(
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.location_on, color: _lat != null ? Colors.green : Colors.grey),
+                          Icon(Icons.location_on, color: _lat != null ? kSuccessColor : Colors.grey),
                           const SizedBox(width: 10),
                           const Text("إحداثيات الموقع الجغرافي", style: TextStyle(fontWeight: FontWeight.bold)),
                           const Spacer(),
                           if (_isGettingLocation)
                             const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                           else if (_lat != null)
-                            const Icon(Icons.check_circle, color: Colors.green),
+                            const Icon(Icons.check_circle, color: kSuccessColor),
                         ],
                       ),
                       if (_lat != null) ...[
@@ -156,6 +163,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                           style: OutlinedButton.styleFrom(
                             foregroundColor: kSecondaryColor,
                             side: const BorderSide(color: kSecondaryColor),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                         ),
                       ),
@@ -175,6 +183,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                       backgroundColor: kPrimaryColor,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 2,
                     ),
                     child: _isSaving 
                       ? const CircularProgressIndicator(color: Colors.white)
@@ -197,6 +206,10 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
         labelText: label,
         prefixIcon: Icon(icon, color: kSecondaryColor),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
         filled: true,
         fillColor: Colors.white,
       ),
@@ -206,7 +219,12 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
 
   void _showSnackBar(String msg, {bool isError = true}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: isError ? kErrorColor : kSuccessColor),
+      SnackBar(
+        content: Text(msg, textAlign: TextAlign.center), 
+        backgroundColor: isError ? kErrorColor : kSuccessColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
     );
   }
 }
