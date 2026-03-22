@@ -5,15 +5,16 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
 
-// المسار الصحيح حالياً لأنهم في نفس المجلد (lib/screens/home/)
+// --- استيراد الشاشات الأخرى ---
 import 'inventory_screen.dart';
+import 'customers_list_screen.dart'; // تأكد من إنشاء هذا الملف كما في الرد السابق
 
 // --- الثوابت اللونية لهوية أكسب ERP ---
-const Color kPrimaryColor = Color(0xFFB21F2D);
-const Color kSecondaryColor = Color(0xFF1A2C3D);
+const Color kPrimaryColor = Color(0xFFB21F2D); // الأحمر الملكي
+const Color kSecondaryColor = Color(0xFF1A2C3D); // الكحلي الغامق
 const Color kSuccessColor = Color(0xFF2E7D32);
 const Color kErrorColor = Color(0xFFC62828);
-const Color kBgColor = Color(0xFFF8F9FA);
+const Color kBgColor = Color(0xFFF4F7F9); // خلفية أفتح قليلاً
 
 class RepHomeScreen extends StatefulWidget {
   const RepHomeScreen({super.key});
@@ -26,7 +27,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
   Map<String, dynamic>? repData;
   bool _isLoading = true;
   bool _isDayOpen = false;
-  String _statusMessage = 'جاري التحقق من حالة العهدة...';
+  String _statusMessage = 'جاري التحقق من حالة الوردية...';
   String _insurancePoints = "0";
 
   @override
@@ -35,37 +36,34 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     _checkUserDataAndDayStatus();
   }
 
-  // --- دالة تسجيل الخروج ومسح الجلسة ---
+  // --- دالة تسجيل الخروج ---
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
-    
-    // إظهار تأكيد قبل تسجيل الخروج
     bool confirm = await showDialog(
-      context: context,
-      builder: (context) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          title: const Text("تسجيل الخروج"),
-          content: const Text("هل تريد إغلاق الجلسة الحالية؟ سيتم مسح بيانات التوكن المؤقتة."),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("إلغاء")),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true), 
-              child: const Text("خروج", style: TextStyle(color: kErrorColor))
+          context: context,
+          builder: (context) => Directionality(
+            textDirection: TextDirection.rtl,
+            child: AlertDialog(
+              title: const Text("تسجيل الخروج"),
+              content: const Text("هل تريد إغلاق الجلسة ومسح بيانات الدخول؟"),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("إلغاء")),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text("خروج", style: TextStyle(color: kErrorColor)),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    ) ?? false;
+          ),
+        ) ?? false;
 
     if (confirm) {
-      await prefs.clear(); // مسح كل البيانات المخزنة نهائياً
-      if (mounted) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-      }
+      await prefs.clear();
+      if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     }
   }
 
+  // --- طلب صلاحيات الموقع ---
   Future<bool> _handleLocationPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -84,31 +82,34 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
     return status.isGranted;
   }
 
+  // --- التحقق من حالة اليومية ---
   Future<void> _checkUserDataAndDayStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final userDataString = prefs.getString('userData');
+
     if (userDataString == null) {
       if (mounted) Navigator.of(context).pushReplacementNamed('/login');
       return;
     }
+
     setState(() {
       repData = jsonDecode(userDataString);
       _isDayOpen = prefs.getBool('isDayOpen') ?? false;
       _insurancePoints = repData?['insurance_points']?.toString() ?? "0";
-      _statusMessage = _isDayOpen ? 'يوم العمل مفتوح - التتبع نشط' : 'يرجى بدء الوردية لإدارة العهدة';
+      _statusMessage = _isDayOpen ? 'الوردية مفتوحة - التتبع نشط' : 'يرجى بدء الوردية لإدارة العهدة';
       _isLoading = false;
     });
   }
 
+  // --- فتح أو إغلاق اليومية ---
   Future<void> _toggleDay() async {
     bool hasPermission = await _handleLocationPermission();
     if (!hasPermission) return;
-    setState(() => _isLoading = true);
-    
-    try {
-      Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
 
+    setState(() => _isLoading = true);
+
+    try {
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       final String? token = repData?['token'];
 
       final response = await http.post(
@@ -116,7 +117,7 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          if (token != null) 'Authorization': 'Token $token', 
+          if (token != null) 'Authorization': 'Token $token',
         },
         body: json.encode({
           'rep_code': repData!['rep_code'],
@@ -133,14 +134,12 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           prefs.setBool('isDayOpen', _isDayOpen);
           _statusMessage = _isDayOpen ? 'تم بدء الوردية بنجاح' : 'تم إنهاء الوردية وتصفية العهدة';
         });
-        _showSnackBar(_isDayOpen 
-          ? "🚀 تأكيد العهدة: بدأت ورديتك" 
-          : "✅ تم تأكيد استلام الأمانات وإغلاق العهدة");
+        _showSnackBar(_isDayOpen ? "🚀 رحلة مبيعات سعيدة!" : "✅ تم إغلاق اليومية بنجاح");
       } else {
-        _showSnackBar("❌ فشل المزامنة مع السيرفر");
+        _showSnackBar("❌ فشل المزامنة: ${response.statusCode}");
       }
     } catch (e) {
-      _showSnackBar("❌ خطأ في الاتصال بالسيرفر: $e");
+      _showSnackBar("❌ خطأ في الاتصال: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -153,17 +152,16 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       child: Scaffold(
         backgroundColor: kBgColor,
         appBar: AppBar(
-          title: const Text('أكسب ERP', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('أكسب ERP', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
           centerTitle: true,
           backgroundColor: Colors.white,
           foregroundColor: kSecondaryColor,
-          elevation: 0,
-          // --- إضافة زر تسجيل الخروج هنا ---
+          elevation: 0.5,
           actions: [
             IconButton(
               icon: const Icon(Icons.logout_rounded, color: kErrorColor),
               onPressed: _logout,
-              tooltip: "تسجيل الخروج",
+              tooltip: "خروج",
             ),
           ],
         ),
@@ -171,15 +169,15 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
           child: _isLoading
               ? const Center(child: CircularProgressIndicator(color: kPrimaryColor))
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
                       _buildStatusHeader(),
                       const SizedBox(height: 20),
                       _buildInsuranceCard(),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 25),
                       _buildActionButton(),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 35),
                       _buildActionGrid(),
                     ],
                   ),
@@ -191,19 +189,19 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
 
   Widget _buildStatusHeader() {
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
       decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.grey.shade200)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)],
+      ),
       child: Row(
         children: [
-          Icon(_isDayOpen ? Icons.online_prediction : Icons.offline_bolt,
-              color: _isDayOpen ? kSuccessColor : kErrorColor),
-          const SizedBox(width: 10),
+          Icon(_isDayOpen ? Icons.check_circle : Icons.pause_circle_filled,
+              color: _isDayOpen ? kSuccessColor : Colors.orange, size: 28),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text(_statusMessage, 
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            child: Text(_statusMessage, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
           ),
         ],
       ),
@@ -213,20 +211,23 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
   Widget _buildInsuranceCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(25),
       decoration: BoxDecoration(
-        color: kSecondaryColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 10)],
+        gradient: const LinearGradient(
+          colors: [kSecondaryColor, Color(0xFF2C3E50)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: kSecondaryColor.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
       ),
       child: Column(
         children: [
-          const Text("إجمالي قيمة الأمانات بالعهدة", 
-            style: TextStyle(color: Colors.white70, fontSize: 14)),
+          const Text("رصيد الأمانات الحالي", style: TextStyle(color: Colors.white70, fontSize: 15)),
           const SizedBox(height: 10),
           Text(_insurancePoints,
-              style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
-          const Text("نقطة تأمين", style: TextStyle(color: Colors.white54, fontSize: 12)),
+              style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold)),
+          const Text("نقطة تأمين", style: TextStyle(color: Colors.white54, fontSize: 13)),
         ],
       ),
     );
@@ -235,16 +236,17 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
   Widget _buildActionButton() {
     return SizedBox(
       width: double.infinity,
+      height: 60,
       child: ElevatedButton.icon(
         onPressed: _toggleDay,
-        icon: Icon(_isDayOpen ? Icons.stop_circle_outlined : Icons.play_circle_fill_outlined, size: 28),
-        label: Text(_isDayOpen ? "تأكيد إنهاء العهدة" : "تأكيد عهدة اليوم",
+        icon: Icon(_isDayOpen ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 30),
+        label: Text(_isDayOpen ? "إنهاء وردية العمل" : "بدء وردية العمل",
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
           backgroundColor: _isDayOpen ? kErrorColor : kSuccessColor,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 4,
         ),
       ),
     );
@@ -255,43 +257,47 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
-      mainAxisSpacing: 15,
-      crossAxisSpacing: 15,
+      mainAxisSpacing: 20,
+      crossAxisSpacing: 20,
       children: [
         _menuItem("تأكيد استلام", Icons.qr_code_scanner, Colors.blue, () {
-          _showSnackBar("قريباً: تأمين عهدة جديدة بالباركود");
+          _showSnackBar("قريباً: مسح باركود العهدة");
         }),
-        _menuItem("جرد العهدة", Icons.inventory_2_outlined, Colors.teal, () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const InventoryScreen()),
-          );
+        _menuItem("جرد العهدة", Icons.inventory_2_rounded, Colors.teal, () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen()));
         }),
-        _menuItem("العملاء", Icons.people_alt_outlined, Colors.orange, () {
-          _showSnackBar("قريباً: إدارة خط السير");
+        _menuItem("العملاء", Icons.storefront_rounded, Colors.orange.shade700, () {
+          // 🚀 الربط الحقيقي بشاشة العملاء
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const CustomersListScreen()));
         }),
-        _menuItem("تقارير العهدة", Icons.bar_chart_outlined, Colors.purple, () {
-          _showSnackBar("قريباً: ملخص الأمانات");
+        _menuItem("التقارير", Icons.analytics_rounded, Colors.indigo, () {
+          _showSnackBar("قريباً: تقارير مبيعات المندوب");
         }),
       ],
     );
   }
 
   Widget _menuItem(String title, IconData icon, Color color, VoidCallback onTap) {
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [BoxShadow(color: color.withAlpha(13), blurRadius: 10)],
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.1)),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 35),
-            const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: kSecondaryColor)),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 32),
+            ),
+            const SizedBox(height: 12),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: kSecondaryColor, fontSize: 15)),
           ],
         ),
       ),
@@ -301,11 +307,13 @@ class _RepHomeScreenState extends State<RepHomeScreen> {
   void _showSnackBar(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, textAlign: TextAlign.center),
+        content: Text(msg, textAlign: TextAlign.center, style: const TextStyle(fontFamily: 'Cairo')),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         backgroundColor: kSecondaryColor,
       ),
     );
   }
 }
+
