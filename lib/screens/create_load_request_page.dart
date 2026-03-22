@@ -29,7 +29,7 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
   final LoadRequestService _service = LoadRequestService();
   final ProductService _productService = ProductService();
   final TextEditingController _notesController = TextEditingController();
-  
+
   List<Product> _allProducts = [];
   bool _isLoading = false;
   bool _isFetchingProducts = true;
@@ -51,21 +51,16 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
       _debugError = "";
     });
 
-    print("🚀 جاري سحب المنتجات باستخدام توكن: ${widget.userToken.substring(0, 5)}...");
-    
     try {
       final products = await _productService.getAllProducts(widget.userToken);
-      
       if (mounted) {
         setState(() {
           _allProducts = products;
           _isFetchingProducts = false;
           _debugRawResponse = "تم جلب ${products.length} منتج بنجاح";
         });
-        print("✅ تم جلب ${_allProducts.length} منتج");
       }
     } catch (e) {
-      print("❌ خطأ في صفحة التحميل: $e");
       if (mounted) {
         setState(() {
           _isFetchingProducts = false;
@@ -76,40 +71,31 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
     }
   }
 
-  // نافذة لعرض تفاصيل الخطأ (الرادار)
   void _showDebugInfo() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("رادار فحص المنتجات", style: TextStyle(fontFamily: 'Cairo')),
+        title: const Text("رادار فحص البيانات", style: TextStyle(fontFamily: 'Cairo')),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text("عدد المنتجات المحملة: ${_allProducts.length}", style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text("التوكن: ${widget.userToken.substring(0, 10)}..."),
+              Text("مخزن المندوب ID: ${widget.myWarehouseId}"),
               const Divider(),
-              const Text("حالة الاستجابة:", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text(_debugRawResponse, style: const TextStyle(fontSize: 12, color: Colors.blue)),
-              if (_debugError.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                const Text("الخطأ التقني:", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                Text(_debugError, style: const TextStyle(fontSize: 10, color: Colors.red)),
-              ]
+              Text("الحالة: $_debugRawResponse"),
+              if (_debugError.isNotEmpty) Text("Error: $_debugError", style: const TextStyle(color: Colors.red, fontSize: 10)),
             ],
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("إغلاق")),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("إغلاق"))],
       ),
     );
   }
 
   void _pickProduct() async {
-    if (_allProducts.isEmpty && !_isFetchingProducts) {
-       _loadProducts(); // محاولة التحميل مرة أخرى لو القائمة فاضية
-    }
+    if (_allProducts.isEmpty && !_isFetchingProducts) _loadProducts();
 
     final Product? selected = await showSearch<Product?>(
       context: context,
@@ -119,9 +105,7 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
     if (selected != null) {
       bool exists = _selectedItems.any((item) => item.productId == selected.id);
       if (exists) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("هذا الصنف مضاف بالفعل", style: TextStyle(fontFamily: 'Cairo')))
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("هذا الصنف مضاف بالفعل")));
         return;
       }
 
@@ -136,26 +120,48 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
     }
   }
 
+  // ✅ التعديل الجوهري هنا لضمان قبول السيرفر للبيانات
   void _submitRequest() async {
-    if (_selectedItems.isEmpty) return;
+    if (_selectedItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("يرجى إضافة أصناف أولاً")));
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    final requestHeader = LoadRequestHeader(
-      repId: widget.repId,
-      sourceWarehouseId: 1, 
-      myWarehouseId: widget.myWarehouseId,
-      items: _selectedItems,
-      notes: _notesController.text,
-    );
+    // تجهيز الـ JSON بأسماء الحقول التي يتوقعها Django (Snake Case)
+    final Map<String, dynamic> requestBody = {
+      "requested_by": widget.repId,
+      "sender_warehouse": 1, // مخزن الإدارة الرئيسي
+      "receiver_warehouse": widget.myWarehouseId,
+      "status": "DRAFT",
+      "notes": _notesController.text,
+      "items": _selectedItems.map((item) => {
+        "product": item.productId,
+        "quantity": item.quantity,
+        "unit_at_transfer": item.unit, // مهم جداً لمطابقة الـ Serializer
+      }).toList(),
+    };
 
-    bool success = await _service.sendLoadRequest(requestHeader, widget.userToken);
-    setState(() => _isLoading = false);
+    try {
+      // ✅ نرسل الـ Map مباشرة للخدمة (تأكد من وجود دالة تستقبل Map في الخدمة)
+      bool success = await _service.sendLoadRequestRaw(requestBody, widget.userToken);
 
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم الإرسال بنجاح ✅")));
-      if (mounted) Navigator.pop(context);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("فشل في الإرسال ❌")));
+      setState(() => _isLoading = false);
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم إرسال طلب التحميل بنجاح ✅")));
+        if (mounted) Navigator.pop(context);
+      } else {
+        setState(() => _debugRawResponse = "السيرفر رفض الطلب (راجع الـ Console)");
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("فشل في الإرسال ❌ راجع الكونسول")));
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _debugError = e.toString();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("حدث خطأ في الاتصال ❌")));
     }
   }
 
@@ -169,7 +175,6 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
           backgroundColor: const Color(0xFF1A237E),
           foregroundColor: Colors.white,
           actions: [
-            // زر الرادار الصغير للفحص
             IconButton(icon: const Icon(Icons.bug_report, color: Colors.orange), onPressed: _showDebugInfo),
             if (_isFetchingProducts)
               const Center(child: Padding(padding: EdgeInsets.all(15), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))))
@@ -179,8 +184,7 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
         ),
         body: Column(
           children: [
-            if (_isFetchingProducts)
-              const LinearProgressIndicator(backgroundColor: Colors.orange, color: Colors.blue),
+            if (_isFetchingProducts) const LinearProgressIndicator(backgroundColor: Colors.orange, color: Colors.blue),
             Expanded(
               child: _selectedItems.isEmpty
                   ? Center(
@@ -189,8 +193,7 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
                         children: [
                           Icon(Icons.add_business_outlined, size: 80, color: Colors.grey[300]),
                           const SizedBox(height: 10),
-                          Text(_isFetchingProducts ? "جاري جلب قائمة المنتجات..." : "اضغط على علامة السلة لإضافة أصناف", 
-                               style: const TextStyle(fontFamily: 'Cairo', color: Colors.grey)),
+                          Text(_isFetchingProducts ? "جاري جلب قائمة المنتجات..." : "اضغط على علامة السلة لإضافة أصناف", style: const TextStyle(fontFamily: 'Cairo', color: Colors.grey)),
                         ],
                       ),
                     )
@@ -221,15 +224,15 @@ class _CreateLoadRequestPageState extends State<CreateLoadRequestPage> {
               padding: const EdgeInsets.all(15),
               child: TextField(
                 controller: _notesController,
-                decoration: const InputDecoration(hintText: "ملاحظات اختياري...", border: OutlineInputBorder()),
+                decoration: const InputDecoration(hintText: "ملاحظات اختيارية للإدارة...", border: OutlineInputBorder(), hintStyle: TextStyle(fontFamily: 'Cairo', fontSize: 13)),
               ),
             ),
             Padding(
               padding: const EdgeInsets.all(15),
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, minimumSize: const Size(double.infinity, 50)),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), minimumSize: const Size(double.infinity, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                 onPressed: _isLoading ? null : _submitRequest,
-                child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("إرسال الطلب", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("إرسال الطلب للمراجعة", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               ),
             )
           ],
